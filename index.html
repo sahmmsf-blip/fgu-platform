@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#174d74">
+<title>منصة المقرر — جامعة فلوريدا العالمية</title>
+<link rel="icon" href="assets/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css?v=1.0">
+</head>
+<body>
+<div class="login-wrap">
+  <section class="login-hero">
+    <img src="assets/logo.png" alt="شعار جامعة فلوريدا العالمية">
+    <h1>جامعة فلوريدا العالمية</h1>
+    <div class="en">Florida Global University · Professional &amp; Continuing Education</div>
+    <div class="course">
+      <b>الإدارة المالية – تطبيقات في ريادة الأعمال</b>
+      <div class="en">Financial Management – with Applications for Entrepreneurs</div>
+      <p class="small" style="opacity:.85;margin-top:12px">منصة المقرر: علاماتك، واختباراتك القصيرة، ومدى إتقانك لكل هدف من أهداف التعلّم.</p>
+    </div>
+  </section>
+  <section class="login-box">
+    <form id="fLogin" class="card" autocomplete="on">
+      <h2>تسجيل الدخول</h2>
+      <p class="muted small" id="msg">ادخل برقمك الجامعي وكلمة المرور التي سلّمك إياها المحاضر.</p>
+      <label class="f"><span>الرقم الجامعي</span><input type="text" id="u" name="username" autocomplete="username" inputmode="latin" dir="ltr" required></label>
+      <label class="f"><span>كلمة المرور</span><input type="password" id="p" name="password" autocomplete="current-password" dir="ltr" required></label>
+      <label class="row small" style="margin-bottom:14px"><input type="checkbox" id="rem" checked style="width:auto"> تذكّرني على هذا الجهاز</label>
+      <button class="btn pri" style="width:100%;justify-content:center" id="go">دخول</button>
+      <p class="muted small" style="margin-top:14px">نسيت كلمة المرور؟ تواصل مع المحاضر ليعيد تعيينها لك.</p>
+    </form>
+    <form id="fChange" class="card hide" autocomplete="off">
+      <h2>غيّر كلمة المرور</h2>
+      <p class="muted small">هذا أول دخول لك (أو أُعيد تعيين كلمتك). اختر كلمة مرور خاصة بك: 8 أحرف على الأقل، فيها حروف إنجليزية وأرقام.</p>
+      <label class="f" id="oldWrap"><span>كلمة المرور الحالية (المؤقتة)</span><input type="password" id="o" autocomplete="current-password" dir="ltr"></label>
+      <label class="f"><span>كلمة المرور الجديدة</span><input type="password" id="n1" autocomplete="new-password" dir="ltr" required></label>
+      <label class="f"><span>أعد كتابة كلمة المرور الجديدة</span><input type="password" id="n2" autocomplete="new-password" dir="ltr" required></label>
+      <button class="btn pri" style="width:100%;justify-content:center" id="go2">حفظ ومتابعة</button>
+      <button type="button" class="btn link small" id="out" style="margin-top:10px">خروج</button>
+    </form>
+  </section>
+</div>
+<script src="assets/config.js?v=1.0"></script>
+<script src="assets/core.js?v=1.0"></script>
+<script>
+(function () {
+  const { rpc, session, setSession, $, toast, busy, logout } = FGU;
+  const q = new URLSearchParams(location.search);
+  let tempPw = null, remember = true;
+  const home = (r) => location.replace(r === "teacher" ? "teacher.html" : "student.html");
+  function showChange() { $("#fLogin").classList.add("hide"); $("#fChange").classList.remove("hide"); $("#oldWrap").classList.toggle("hide", !!tempPw); setTimeout(() => $("#n1").focus(), 30); }
+  if (q.get("expired")) $("#msg").textContent = "انتهت الجلسة. سجّل الدخول من جديد.";
+  const s = session();
+  if (s && s.token) { if (s.must_change || q.get("change")) showChange(); else home(s.role); }
+  $("#fLogin").addEventListener("submit", (e) => {
+    e.preventDefault();
+    busy($("#go"), async () => {
+      remember = $("#rem").checked;
+      const r = await rpc("fgu_login", { p_username: $("#u").value.trim(), p_password: $("#p").value, p_remember: remember }, { noauth: true });
+      setSession(r, remember);
+      if (r.must_change) { tempPw = $("#p").value; showChange(); } else home(r.role);
+    });
+  });
+  $("#fChange").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if ($("#n1").value !== $("#n2").value) return toast("كلمتا المرور غير متطابقتين", "err");
+    busy($("#go2"), async () => {
+      await rpc("fgu_change_password", { p_old: tempPw || $("#o").value, p_new: $("#n1").value });
+      const cur = session(); cur.must_change = false; let lr = false; try { lr = !!localStorage.getItem("fgu.session"); } catch (x) { } setSession(cur, lr || remember);
+      toast("حُفظت كلمة المرور الجديدة", "ok"); setTimeout(() => home(cur.role), 500);
+    });
+  });
+  $("#out").onclick = logout;
+})();
+</script>
+</body>
+</html>
