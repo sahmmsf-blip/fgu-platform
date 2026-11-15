@@ -65,7 +65,8 @@
     const btn = $("loginBtn"); spin(btn, true, T("جارٍ الدخول…", "Logging in…"));
     try {
       const r = await rpc("fgu_login", { p_username: u, p_password: p, p_remember: $("remember").checked }, true);
-      if (r.role !== "student") { spin(btn, false); return loginErr(T("هذا حساب المحاضر؛ ادخل من صفحة المحاضر.", "This is a lecturer account; please use the lecturer page.")); }
+      // حساب المحاضر: ينتقل مباشرة إلى لوحة المحاضر بالجلسة نفسها
+      if (r.role !== "student") { setSession(r, $("remember").checked); location.href = "teacher.html"; return; }
       setSession(r, $("remember").checked);
       if (r.must_change) { tempPw = p; spin(btn, false); showChange(); return; }
       welcome(r.full_name);

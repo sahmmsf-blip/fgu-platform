@@ -41,7 +41,7 @@
   // ===================== الهيكل =====================
   const NAV = [
     { g: "القيادة" }, { v: "dash", t: "لوحة القيادة", ic: "home" },
-    { g: "داخل المقرر" }, { v: "assess", t: "التقويمات ورصد العلامات", ic: "file" }, { v: "book", t: "سجل العلامات", ic: "award" }, { v: "objs", t: "إتقان الأهداف", ic: "target" },
+    { g: "داخل المقرر" }, { v: "assess", t: "التقويمات ورصد العلامات", ic: "file" }, { v: "book", t: "سجل العلامات", ic: "award" }, { v: "objs", t: "إتقان الأهداف", ic: "target" }, { v: "records", t: "السجلات والطباعة", ic: "printer" },
     { g: "أدوات التقويم" }, { v: "bank", t: "بنك الأسئلة", ic: "layers" },
     { g: "الإدارة" }, { v: "people", t: "الطلبة", ic: "users" }, { v: "settings", t: "الشعب والفصول والإعدادات", ic: "key" }
   ];
@@ -92,7 +92,7 @@
     [S.roster, S.assess, S.book] = await Promise.all([rpc("t_roster", { p_section: S.sec }), rpc("t_assessments", { p_section: S.sec }), rpc("t_gradebook", { p_section: S.sec })]);
     S.at = Date.now();
   }
-  async function reload() { await loadBoot(); await loadSection(); route(); }
+  async function reload() { Object.keys(RC).forEach((k) => delete RC[k]); await loadBoot(); await loadSection(); route(); }
   async function start() {
     $("vLogin").classList.add("hide"); $("app").classList.remove("hide");
     $("view").innerHTML = '<div class="card pad loading">جارٍ التحميل…</div>';
@@ -461,6 +461,290 @@
     el.querySelector("#pS").onclick = async (e) => { spin(e.target, true); try { await rpc("t_save_profile", { p: { full_name: el.querySelector("#pN").value, email: el.querySelector("#pE").value } }); toast("حُفظ"); await reload(); } catch (x) { toast(x.message, true); spin(e.target, false); } };
     el.querySelector("#pW").onclick = () => { const b = openSheet(`<h3>تغيير كلمة المرور</h3><label class="field"><span>الحالية</span><input class="input" id="w0" type="password" dir="ltr"></label><label class="field"><span>الجديدة (8 أحرف على الأقل، حروف وأرقام)</span><input class="input" id="w1" type="password" dir="ltr"></label><label class="field"><span>تأكيد الجديدة</span><input class="input" id="w2" type="password" dir="ltr"></label><button class="btn primary block" id="wS">حفظ</button>`);
       b.querySelector("#wS").onclick = async (e) => { if (b.querySelector("#w1").value !== b.querySelector("#w2").value) return toast("كلمتا المرور غير متطابقتين", true); spin(e.target, true); try { await rpc("fgu_change_password", { p_old: b.querySelector("#w0").value, p_new: b.querySelector("#w1").value }); closeSheet(); toast("تغيّرت كلمة المرور"); } catch (x) { toast(x.message, true); spin(e.target, false); } }; };
+  } };
+
+
+  // ===================== السجلات والطباعة (على نمط منصة السهم العلمي) =====================
+  // سلّم تقديرات جامعة فلوريدا العالمية (كما اعتمده المحاضر)
+  const GRADES = [[95, "A+", 4.00], [90, "A", 3.75], [85, "B+", 3.50], [80, "B", 3.00], [77, "C+", 2.50], [73, "C", 2.00], [70, "C-", 1.75], [67, "D+", 1.50], [60, "D", 1.00], [0, "F", 0.00]];
+  const gradeOf = (p) => (p == null ? null : GRADES.find((g) => p >= g[0]));
+  const RKINDS = [
+    ["sum", "السجل التجميعي", "كل مكوّنات توزيع العلامات + المجموع والتقدير والنقاط"],
+    ["marks", "كشف العلامات المختصر", "منتصف الفصل والنهائي والأعمال الفصلية والمجموع"],
+    ["det", "السجل التفصيلي", "كل هدف من أهداف الفصول عمود بنص عمودي"],
+    ["checklist", "قائمة الشطب", "إتقان أهداف فصول محددة (✓ / ✗)"],
+    ["evidence", "سجل القياس بالأدوات", "كل تقويم بأداته وتاريخه وأهدافه (دليل للجامعة)"]
+  ];
+  const RF = { kind: "sum", secs: "cur", chs: [], show: "level", sort: "id", only: "all", orient: "auto" };
+  const RC = {};   // ذاكرة بيانات الشعب الأخرى
+  const DK = { name: "1F2937", info: "16325A", comp: ["1E3A8A", "0F5F58", "7C2D12", "9A3412", "581C87", "155E75"], total: "713F12", grade: "334155", ch: ["065F46", "7C2D12", "581C87", "155E75", "9D174D", "3F6212", "1E3A8A", "9A3412", "0F5F58", "713F12"] };
+  const LT = { comp: ["E8EFFF", "E0F5F2", "FDF1E7", "FFF1E6", "F3EBFB", "E6F6FA"], total: "FDF6D8", grade: "F1F5F9" };
+  const LVF = ["", "FFE4D6", "FDEFC8", "DDE7FD", "D9F2E1"], LVC = ["", "9A3412", "854D0E", "1E40AF", "166534"];
+  const PCSS = `
+  .paper{background:#fff;color:#111827;font-family:"IBM Plex Sans Arabic",Arial,sans-serif;direction:rtl}
+  .paper .doc{padding:14px 16px;min-width:max-content}
+  .paper .doc+.doc{border-top:2px dashed #cbd5e1}
+  .rh{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;margin-bottom:10px;border-bottom:2px solid #16325a;padding-bottom:8px}
+  .rh .side{font-family:Amiri,serif;font-size:14.5px;font-weight:700;line-height:1.6;color:#1f2937}
+  .rh .side img{width:54px;height:54px;border-radius:50%;float:right;margin-left:10px;background:#fff}
+  .rh .l{text-align:left}
+  .rh .t{text-align:center;font-family:Amiri,serif;font-size:25px;font-weight:700;color:#16325a;line-height:1.25}
+  .rh .t span{display:block;font-size:16px;color:#7c2d12}
+  table.r{border-collapse:collapse;font-size:12px;margin-inline:auto}
+  table.r th,table.r td{border:1px solid #94a3b8;padding:3px 6px;text-align:center;vertical-align:middle}
+  table.r th{font-family:Amiri,serif;font-weight:700;font-size:13.5px;color:#fff;line-height:1.3}
+  table.r th small{display:block;font-size:11px;font-weight:400;opacity:.92}
+  table.r th.vt{padding:6px 1px;width:26px;max-width:30px;vertical-align:bottom}
+  table.r th.vt div{writing-mode:vertical-rl;transform:rotate(180deg);font-family:"IBM Plex Sans Arabic",Arial,sans-serif;font-size:10px;font-weight:500;line-height:1.3;max-height:200px;text-align:start;white-space:normal;margin:0 auto}
+  table.r td.nm{text-align:right;white-space:nowrap;min-width:170px}
+  table.r td.wrap{text-align:right;white-space:normal;max-width:380px;font-size:11.5px}
+  table.r td.b{font-weight:700}
+  table.r td.dim{color:#9ca3af}
+  table.r td.ltr{direction:ltr}
+  table.r th.cd{font-family:Arial,sans-serif;font-size:11px;padding:4px 2px;direction:ltr;min-width:30px}
+  .lg{columns:2;column-gap:24px;font-size:10.5px;line-height:1.55;color:#1f2937;margin-top:8px;max-width:1100px}
+  .lg b{display:block;column-span:all;font-family:Amiri,serif;font-size:13px;color:#16325a;margin-bottom:2px}
+  .lg div{break-inside:avoid}.lg span{font-weight:700;color:#7c2d12}
+  table.r thead{display:table-header-group}
+  table.r tr{break-inside:avoid}
+  .rn{font-size:11px;color:#374151;margin-top:8px;line-height:1.7;max-width:1100px}
+  .rs{display:flex;justify-content:space-around;margin-top:20px;font-family:Amiri,serif;font-size:14.5px;font-weight:700;color:#1f2937;gap:20px}`;
+  const hex = (c) => "#" + c;
+  let LOGO_DATA = null;   // الشعار مضمّنًا في الصفحة المطبوعة (لا يعتمد على تحميل ملف من نافذة الطباعة)
+  const LOGO_URL = () => LOGO_DATA || new URL("assets/logo.png", location.href).href;
+  async function loadLogo() {
+    if (LOGO_DATA) return;
+    try { const bl = await (await fetch("assets/logo.png")).blob(); LOGO_DATA = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(bl); }); } catch (e) { }
+  }
+  const XLSX_URL = "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js";
+  function loadScript(src) { return new Promise((ok, no) => { if (document.querySelector(`script[src="${src}"]`)) return ok(); const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => no(new Error("تعذّر تحميل مكتبة Excel؛ تحقق من الاتصال")); document.head.appendChild(s); }); }
+
+  function printDoc(title, html, orient) {
+    const w = window.open("", "_blank");
+    if (!w) { toast("اسمح للمتصفح بفتح نافذة جديدة للطباعة", true); return; }
+    const land = orient === "landscape";
+    w.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+      <style>${PCSS}
+      @page{size:A4 ${land ? "landscape" : "portrait"};margin:8mm}
+      html,body{margin:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .paper .doc{min-width:0;padding:0}.paper .doc+.doc{border:0;break-before:page;page-break-before:always}
+      .bar{position:sticky;top:0;background:#16325a;color:#fff;padding:10px 14px;font:14px Arial;display:flex;gap:10px;align-items:center;justify-content:space-between}
+      .bar button{background:#fff;color:#16325a;border:0;border-radius:8px;padding:8px 14px;font-weight:700;font-size:14px}
+      @media print{.bar{display:none}}</style></head>
+      <body><div class="bar"><span>${esc(title)} — A4 ${land ? "أفقي" : "عمودي"}</span><button onclick="window.print()">طباعة / حفظ PDF</button></div>
+      <div class="paper" id="pp">${html}</div></body></html>`);
+    w.document.close();
+    const fit = () => {
+      const target = land ? 1060 : 735;
+      w.document.querySelectorAll(".doc").forEach((d) => { const wd = Math.max(d.scrollWidth, 1); d.style.zoom = Math.min(1, target / wd).toFixed(3); });
+      setTimeout(() => { w.focus(); w.print(); }, 450);
+    };
+    const go = () => (w.document.fonts && w.document.fonts.ready ? w.document.fonts.ready.then(fit) : fit());
+    if (w.document.readyState === "complete") go(); else w.addEventListener("load", go);
+  }
+
+  // بيانات شعبة: الحالية من الذاكرة، والأخرى تُجلب عند الحاجة
+  async function secData(id) {
+    if (id === S.sec) return { book: S.book, assess: S.assess };
+    if (!RC[id]) { const [book, assess] = await Promise.all([rpc("t_gradebook", { p_section: id }), rpc("t_assessments", { p_section: id })]); RC[id] = { book, assess }; }
+    return RC[id];
+  }
+  const scopeChs = () => { const all = chs(); return RF.chs.length ? all.filter((c) => RF.chs.includes(c.ch)) : all; };
+  const scopeLabel = () => RF.chs.length ? "الفصول: " + RF.chs.slice().sort((a, b) => a - b).join("، ") : "كل فصول الكتاب";
+  function rheader(secObj, title, sub) {
+    const t = term(secObj.term_id);
+    return { title, sub, right: ["جامعة فلوريدا العالمية", "التعليم المهني والمستمر — برنامج ريادة الأعمال"],
+      left: ["المقرر: " + course().title, "الشعبة: " + secObj.name, "الفصل الدراسي: " + (t.name || ""), "المحاضر: " + (S.boot.me.full_name || "")] };
+  }
+  function studs(book) {
+    let L = book.students.filter((s) => s.status === "active");
+    if (RF.only === "risk") L = L.filter((s) => s.total != null && s.wsofar && s.total / s.wsofar < 0.6);
+    if (RF.sort === "alpha") L = L.slice().sort((a, b) => a.full_name.localeCompare(b.full_name, "ar"));
+    else if (RF.sort === "total") L = L.slice().sort((a, b) => (b.total == null ? -1 : b.total / (b.wsofar || 1)) - (a.total == null ? -1 : a.total / (a.wsofar || 1)));
+    else L = L.slice().sort((a, b) => String(a.username).localeCompare(String(b.username)));
+    return L;
+  }
+  const pctOf = (s) => (s.total != null && s.wsofar ? s.total / s.wsofar * 100 : null);
+  const cell = (v, o) => Object.assign({ v: v == null ? "—" : v, dim: v == null }, o || {});
+  const base = [{ h: "م", dark: DK.info, w: 5 }, { h: "الرقم الجامعي", dark: DK.info, w: 14 }, { h: "اسم الطالب", dark: DK.name, nm: true, w: 30 }];
+  const baseRow = (s, i) => [cell(i + 1), cell(s.username), cell(s.full_name)];
+
+  function rmodel(kind, secObj, D) {
+    const book = D.book, C = book.components, L = studs(book);
+    const ws = L.length ? Math.max(...L.map((s) => s.wsofar || 0)) : 0;
+    let M;
+    if (kind === "sum" || kind === "marks") {
+      M = rheader(secObj, RKINDS.find((k) => k[0] === kind)[1], secObj.name);
+      let groups;
+      if (kind === "sum") groups = C.map((k, i) => ({ h: k.title, s: "من " + nf(+k.weight, 0), ids: [k.id], dark: DK.comp[i % 6], light: LT.comp[i % 6] }));
+      else {
+        const mid = C.find((k) => k.key === "midterm"), fin = C.find((k) => k.key === "final"), rest = C.filter((k) => k !== mid && k !== fin);
+        groups = [mid && { h: mid.title, s: "من " + nf(+mid.weight, 0), ids: [mid.id], dark: DK.comp[0], light: LT.comp[0] },
+          fin && { h: fin.title, s: "من " + nf(+fin.weight, 0), ids: [fin.id], dark: DK.comp[3], light: LT.comp[3] },
+          { h: "الأعمال الفصلية", s: "من " + nf(rest.reduce((t, k) => t + +k.weight, 0), 0), ids: rest.map((k) => k.id), dark: DK.comp[1], light: LT.comp[1] }].filter(Boolean);
+      }
+      M.cols = base.concat(groups.map((g) => ({ h: g.h, s: g.s, dark: g.dark, light: g.light, w: 12 })),
+        [{ h: "المجموع", s: "من " + nf(ws, 0), dark: DK.total, light: LT.total, b: true, w: 10 }, { h: "النسبة", dark: DK.total, light: LT.total, w: 9 },
+         { h: "التقدير", dark: DK.grade, light: LT.grade, b: true, w: 8 }, { h: "النقاط", dark: DK.grade, light: LT.grade, w: 8 }]);
+      M.rows = L.map((s, i) => {
+        const p = pctOf(s), g = gradeOf(p);
+        return baseRow(s, i).concat(groups.map((gr) => {
+          const vals = gr.ids.map((id) => { const k = C.find((x) => x.id === id); return s.comps[id] == null ? null : s.comps[id] * k.weight / 100; }).filter((v) => v != null);
+          return cell(vals.length ? nf(vals.reduce((a, b) => a + b, 0), 2) : null);
+        }), [cell(s.total == null ? null : nf(s.total, 2), { b: true }), cell(p == null ? null : nf(p, 1) + "%"),
+          cell(g ? g[1] : null, { b: true, color: g && g[1] === "F" ? "B91C1C" : null, fill: g && g[1] === "F" ? "FEE2E2" : null }), cell(g ? g[2].toFixed(2) : null)]);
+      });
+      M.note = `علامة كل مكوّن = متوسط نسب تقويماته المحتسبة × وزنه في الخطة الدراسية. «المجموع من ${nf(ws, 0)}» = مجموع أوزان المكوّنات التي فيها علامات محتسبة حتى الآن${ws < 100 ? "؛ لذلك النسبة والتقدير مؤقتان حتى تكتمل الأوزان إلى 100" : ""}. سلّم التقدير: A+ 95–100 (4.00)، A 90–94 (3.75)، B+ 85–89 (3.50)، B 80–84 (3.00)، C+ 77–79 (2.50)، C 73–76 (2.00)، C- 70–72 (1.75)، D+ 67–69 (1.50)، D 60–66 (1.00)، F أقل من 60. يُحسب التقدير من النسبة دون تقريب.`;
+      M.sign = true;
+    } else if (kind === "det" || kind === "checklist") {
+      const CH = scopeChs(), check = kind === "checklist";
+      M = rheader(secObj, check ? "قائمة الشطب لإتقان الأهداف" : "السجل التفصيلي لأهداف الفصول", secObj.name + " — " + scopeLabel());
+      M.cols = base.slice();
+      CH.forEach((ch, ci) => ch.objs.forEach((o) => M.cols.push({ h: o.code, code: true, g: "c" + ch.ch, gt: "الفصل " + ch.ch, dark: DK.ch[ci % 10], gdark: DK.ch[ci % 10], w: 6 })));
+      M.legend = CH.flatMap((ch) => ch.objs.map((o) => [o.code, o.text]));
+      M.cols.push({ h: check ? "أتقن" : "قيس", s: check ? "من المقيس" : "من الأهداف", dark: DK.total, light: LT.total, b: true, w: 9 });
+      const objs = CH.flatMap((c) => c.objs);
+      M.rows = L.map((s, i) => {
+        let meas = 0, mast = 0;
+        const cs = objs.map((o) => {
+          const v = (s.objs || {})[o.code];
+          if (!v || !+v[1]) return cell(null);
+          const p = v[0] / v[1] * 100, k = lvOf(p); meas++; if (p >= 70) mast++;
+          if (check) return cell(p >= 70 ? "✓" : "✗", { b: true, color: p >= 70 ? "166534" : "9A3412", fill: p >= 70 ? "D9F2E1" : "FFE4D6" });
+          return cell(RF.show === "mark" ? nf(p, 0) : String(k), { b: true, fill: LVF[k], color: LVC[k] });
+        });
+        return baseRow(s, i).concat(cs, [cell(check ? mast + "/" + meas : meas + "/" + objs.length, { b: true })]);
+      });
+      M.note = check ? "✓ = متقن (70% فأكثر من علامات الأسئلة والأجزاء المربوطة بالهدف)؛ ✗ = لم يُتقن بعد؛ — = لم يُقَس بعد." :
+        (RF.show === "mark" ? "الخلية = نسبة الطالب في الهدف من علامات الأسئلة والأجزاء المربوطة به؛ — = لم يُقَس بعد." :
+          "الخلية = مستوى الإتقان: 1 مبتدئ (أقل من 50%)، 2 نامٍ (50–69%)، 3 متمكّن (70–84%)، 4 متميّز (85% فأكثر)؛ — = لم يُقَس بعد.");
+      M.sign = true;
+    } else {
+      const codes = new Set(scopeChs().flatMap((c) => c.objs.map((o) => o.code)));
+      const A = D.assess.filter((a) => { const oc = a.kind === "quiz" ? (a.quiz.objectives || []) : a.parts.map((p) => p.objective_code); return !RF.chs.length || oc.some((x) => codes.has(x)); });
+      M = rheader(secObj, "سجل القياس بالأدوات", secObj.name + " — " + scopeLabel());
+      M.cols = [{ h: "م", dark: DK.info, w: 5 }, { h: "التقويم", dark: DK.name, nm: true, w: 28 }, { h: "المكوّن", dark: DK.info, wrap: true, w: 18 }, { h: "الأداة", dark: DK.info, wrap: true, w: 18 },
+        { h: "التاريخ", dark: DK.info, w: 16 }, { h: "الأهداف المقيسة", dark: DK.comp[1], wrap: true, w: 26 }, { h: "العلامة القصوى", dark: DK.comp[0], w: 9 },
+        { h: "عدد الطلبة", s: "الذين قيسوا", dark: DK.comp[0], w: 9 }, { h: "متوسط الشعبة", dark: DK.total, light: LT.total, b: true, w: 10 }];
+      const act = book.students.filter((s) => s.status === "active");
+      M.rows = A.map((a, i) => {
+        const oc = a.kind === "quiz" ? (a.quiz.objectives || []) : [...new Set(a.parts.map((p) => p.objective_code))];
+        const v = act.map((s) => s.items[a.id]).filter((x) => x != null);
+        const dt = a.kind === "quiz" ? [a.open_at && "من " + fmtDT(a.open_at, false), a.close_at && "إلى " + fmtDT(a.close_at, false)].filter(Boolean).join(" ") : "";
+        return [cell(i + 1), cell(a.title, { wrap: true }), cell(comp(a.component_id).title || "", { wrap: true }),
+          cell(a.kind === "quiz" ? `اختبار إلكتروني (${a.quiz.n} أسئلة من بنك الأسئلة)` : `رصد المحاضر (${a.parts.length} أجزاء)`, { wrap: true }),
+          cell(dt || null, { wrap: true }), cell(oc.join("، "), { wrap: true, ltr: true }), cell(nf(+a.max_score, 2)), cell(v.length), cell(v.length ? nf(v.reduce((x, y) => x + y, 0) / v.length, 1) + "%" : null, { b: true })];
+      });
+      M.note = "متوسط الشعبة = متوسط نسب الطلبة الذين قيسوا بالتقويم (للاختبار الإلكتروني: أفضل محاولة لكل طالب). تفصيل علامة كل طالب في كل تقويم في الصفحة التالية.";
+      M.sign = true;
+      // الصفحة الثانية: علامات الطلبة في كل تقويم
+      const M2 = rheader(secObj, "سجل القياس بالأدوات — علامات الطلبة", secObj.name + " — " + scopeLabel());
+      M2.cols = base.concat(A.map((a, i) => ({ h: a.title, s: "من " + nf(+a.max_score, 2), vt: true, dark: DK.comp[i % 6], w: 7 })));
+      M2.rows = L.map((s, i) => baseRow(s, i).concat(A.map((a) => cell(s.items[a.id] == null ? null : nf(s.items[a.id] * a.max_score / 100, 2)))));
+      M2.note = "الخلية = علامة الطالب في التقويم (للاختبار الإلكتروني: أفضل محاولة)؛ — = لم يُرصد له أو لم يحل الاختبار.";
+      M2.sign = true;
+      M.extra = M2;
+    }
+    const fix = (X) => { const vt = X.cols.filter((x) => x.vt || x.code).length; X.orient = RF.orient !== "auto" ? RF.orient : (X.cols.length > 9 || vt > 4 || kind === "evidence") ? "landscape" : "portrait"; return X; };
+    fix(M); if (M.extra) fix(M.extra);
+    return M;
+  }
+  async function rmodels() {
+    const ids = RF.secs === "all" ? S.boot.sections.filter((s) => !s.archived).map((s) => s.id) : [S.sec];
+    const out = [];
+    for (const id of ids) { const so = S.boot.sections.find((s) => s.id === id); const M = rmodel(RF.kind, so, await secData(id)); out.push(M); if (M.extra) out.push(M.extra); }
+    return out;
+  }
+  function rhtml(M) {
+    let h = `<div class="doc"><div class="rh"><div class="side"><img src="${LOGO_URL()}" alt="">${M.right.map(esc).join("<br>")}</div><div class="t">${esc(M.title)}<span>${esc(M.sub)}</span></div><div class="side l">${M.left.map(esc).join("<br>")}</div></div>`;
+    const hasG = M.cols.some((x) => x.g);
+    h += '<table class="r"><thead><tr>';
+    for (let i = 0; i < M.cols.length;) {
+      const c = M.cols[i];
+      if (hasG && c.g) { let j = i; while (j < M.cols.length && M.cols[j].g === c.g) j++; h += `<th colspan="${j - i}" style="background:${hex(c.gdark || c.dark)}">${esc(c.gt)}</th>`; i = j; }
+      else { h += `<th ${hasG ? 'rowspan="2"' : ""} class="${c.vt ? "vt" : ""}" style="background:${hex(c.dark)}">${c.vt ? `<div>${esc(c.h)}</div>` : esc(c.h)}${c.s ? `<small>${esc(c.s)}</small>` : ""}</th>`; i++; }
+    }
+    h += "</tr>";
+    if (hasG) h += "<tr>" + M.cols.filter((c) => c.g).map((c) => `<th class="${c.vt ? "vt" : ""}${c.code ? " cd" : ""}" style="background:${hex(c.dark)}">${c.vt ? `<div>${esc(c.h)}</div>` : esc(c.h)}</th>`).join("") + "</tr>";
+    h += "</thead><tbody>";
+    M.rows.forEach((r, ri) => { h += "<tr>" + r.map((x, i) => { const c = M.cols[i] || {}, cls = [c.nm ? "nm" : "", x.wrap || c.wrap ? "wrap" : "", x.b || c.b ? "b" : "", x.dim ? "dim" : "", x.ltr ? "ltr" : ""].join(" ");
+      const bg = x.fill || c.light || (ri % 2 ? "F8FAFC" : "FFFFFF");
+      return `<td class="${cls}" style="background:${hex(bg)}${x.color ? ";color:" + hex(x.color) : ""}">${esc(x.v)}</td>`; }).join("") + "</tr>"; });
+    if (!M.rows.length) h += `<tr><td colspan="${M.cols.length}" style="padding:18px;color:#6b7280">لا بيانات ضمن هذه الفلاتر.</td></tr>`;
+    h += `</tbody></table><div class="rn">${esc(M.note)}</div>`;
+    if (M.legend) h += `<div class="lg"><b>مفتاح الأهداف</b>${M.legend.map(([c, t]) => `<div><span dir="ltr">${esc(c)}</span> ${esc(t)}</div>`).join("")}</div>`;
+    if (M.sign) h += `<div class="rs"><span>المحاضر: ${esc(S.boot.me.full_name || "")} ..........</span><span>مدير البرنامج: ....................</span><span>عميد الكلية: ....................</span></div>`;
+    return h + "</div>";
+  }
+  async function rxlsx(models, name) {
+    await loadScript(XLSX_URL); const X = window.XLSX;
+    const border = { top: { style: "thin", color: { rgb: "94A3B8" } }, bottom: { style: "thin", color: { rgb: "94A3B8" } }, left: { style: "thin", color: { rgb: "94A3B8" } }, right: { style: "thin", color: { rgb: "94A3B8" } } };
+    const hs = (fill, rot) => ({ font: { name: "Amiri", bold: true, sz: rot ? 9 : 12, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: fill } }, border,
+      alignment: { horizontal: "center", vertical: "center", wrapText: true, readingOrder: 2, textRotation: rot ? 90 : 0 } });
+    const ds = (x, c) => ({ font: { name: "Arial", sz: 11, bold: !!(x.b || c.b), color: { rgb: x.color || (x.dim ? "9CA3AF" : "111827") } }, fill: { patternType: "solid", fgColor: { rgb: x.fill || c.light || "FFFFFF" } }, border,
+      alignment: { horizontal: c.nm || x.wrap || c.wrap ? "right" : "center", vertical: "center", wrapText: !!(x.wrap || c.wrap), readingOrder: 2 } });
+    const wb = X.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
+    models.forEach((M, mi) => {
+      const aoa = [], st = [], merges = [], n = M.cols.length, hasG = M.cols.some((x) => x.g);
+      const put = (r, c, v, s) => { aoa[r] = aoa[r] || []; aoa[r][c] = v; st.push([r, c, s]); };
+      put(0, 0, M.title + " — " + M.sub, { font: { name: "Amiri", bold: true, sz: 18, color: { rgb: "16325A" } }, alignment: { horizontal: "center", readingOrder: 2 } }); merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: n - 1 } });
+      put(1, 0, M.right.concat(M.left).join("   |   "), { font: { name: "Amiri", sz: 12, color: { rgb: "374151" } }, alignment: { horizontal: "center", readingOrder: 2, wrapText: true } }); merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: n - 1 } });
+      const r1 = 3, r2 = hasG ? 4 : 3;
+      for (let i = 0; i < n;) {
+        const c = M.cols[i];
+        if (hasG && c.g) { let j = i; while (j < n && M.cols[j].g === c.g) j++;
+          for (let k = i; k < j; k++) { put(r1, k, k === i ? c.gt : "", hs(c.gdark || c.dark)); put(r2, k, M.cols[k].h, hs(M.cols[k].dark, M.cols[k].vt)); }
+          merges.push({ s: { r: r1, c: i }, e: { r: r1, c: j - 1 } }); i = j; }
+        else { put(r1, i, c.h + (c.s ? " (" + c.s + ")" : ""), hs(c.dark, c.vt)); if (hasG) { put(r2, i, "", hs(c.dark)); merges.push({ s: { r: r1, c: i }, e: { r: r2, c: i } }); } i++; }
+      }
+      M.rows.forEach((row, ri) => row.forEach((x, ci) => { const num = typeof x.v === "string" && /^-?\d+(\.\d+)?$/.test(x.v) && ci !== 1 ? +x.v : x.v; put(r2 + 1 + ri, ci, typeof num === "number" ? num : String(num), ds(x, M.cols[ci])); }));
+      const last = r2 + M.rows.length + 2;
+      put(last, 0, M.note, { font: { name: "Arial", sz: 10, color: { rgb: "374151" } }, alignment: { horizontal: "right", wrapText: true, readingOrder: 2 } }); merges.push({ s: { r: last, c: 0 }, e: { r: last, c: n - 1 } });
+      if (M.legend) { put(last + 1, 0, "مفتاح الأهداف: " + M.legend.map(([c, t]) => c + " " + t).join("  •  "), { font: { name: "Arial", sz: 9, color: { rgb: "374151" } }, alignment: { horizontal: "right", wrapText: true, readingOrder: 2, vertical: "top" } }); merges.push({ s: { r: last + 1, c: 0 }, e: { r: last + 1, c: n - 1 } }); }
+      put(last + 2, 0, "المحاضر: " + (S.boot.me.full_name || "") + "        مدير البرنامج: ..................        عميد الكلية: ..................", { font: { name: "Amiri", sz: 12 }, alignment: { horizontal: "center", readingOrder: 2 } });
+      merges.push({ s: { r: last + 2, c: 0 }, e: { r: last + 2, c: n - 1 } });
+      for (let r = 0; r <= last + 2; r++) { aoa[r] = aoa[r] || []; for (let k = 0; k < n; k++) if (aoa[r][k] === undefined) aoa[r][k] = ""; }
+      const sh = X.utils.aoa_to_sheet(aoa);
+      st.forEach(([r, c, s]) => { const a = X.utils.encode_cell({ r, c }); if (sh[a]) sh[a].s = s; });
+      sh["!merges"] = merges; sh["!cols"] = M.cols.map((c) => ({ wch: c.w || 10 }));
+      sh["!rows"] = []; sh["!rows"][0] = { hpt: 30 }; sh["!rows"][1] = { hpt: 24 }; sh["!rows"][r2] = { hpt: M.cols.some((c) => c.vt) ? 170 : 40 }; sh["!rows"][last] = { hpt: 60 }; if (M.legend) sh["!rows"][last + 1] = { hpt: Math.min(400, 14 * Math.ceil(M.legend.length / 2)) };
+      sh["!views"] = [{ RTL: true }];
+      sh["!pageSetup"] = { paperSize: 9, orientation: M.orient === "landscape" ? "landscape" : "portrait", fitToWidth: 1, fitToHeight: 0 };
+      X.utils.book_append_sheet(wb, sh, (M.sub.split("—")[0].trim() + " " + (mi + 1)).replace(/[\\/:*?"<>|[\]]/g, "-").slice(0, 30));
+    });
+    X.writeFile(wb, name.replace(/[\\/:*?"<>|]/g, "-") + ".xlsx"); toast("نُزّل ملف Excel");
+  }
+
+  VIEWS.records = { title: "السجلات والطباعة", secAware: true, render(el) {
+    if (!document.getElementById("pcss")) { const s = document.createElement("style"); s.id = "pcss"; s.textContent = PCSS; document.head.appendChild(s); }
+    const chapKinds = ["det", "checklist", "evidence"].includes(RF.kind);
+    el.innerHTML = `<div class="vhead"><div><h2>السجلات والطباعة</h2><p>سجلات رسمية جاهزة — كلها تُطبع على A4 من الهاتف أو الحاسوب، وتُصدَّر إلى Excel منسّق</p></div></div>
+      <div class="card pad filters">
+        <div><span class="lbl">السجل</span><div class="kinds">${RKINDS.map(([k, t, d]) => `<button class="kind" data-k="${k}" aria-pressed="${RF.kind === k}"><b>${t}</b><span>${d}</span></button>`).join("")}</div></div>
+        <div class="fields three">
+          <label class="field"><span>الشعب</span><select class="input" id="fSecs">${opt(RF.secs, [["cur", "الشعبة الحالية: " + sec().name], ["all", "كل الشعب (كل شعبة في صفحة)"]])}</select></label>
+          <label class="field"><span>الطلبة</span><select class="input" id="fOnly">${opt(RF.only, [["all", "كل الطلبة"], ["risk", "المحتاجون دعمًا فقط (أقل من 60%)"]])}</select></label>
+          <label class="field"><span>الترتيب</span><select class="input" id="fSort">${opt(RF.sort, [["id", "الرقم الجامعي"], ["alpha", "أبجديًّا"], ["total", "بالنسبة (الأعلى أولًا)"]])}</select></label></div>
+        <div class="${chapKinds ? "" : "hide"}"><span class="lbl">النطاق — علّم الفصول (بلا تعليم = كل الفصول)</span>
+          <div class="chips">${chs().map((c) => `<label class="chip lchip"><input type="checkbox" class="fC" data-c="${c.ch}" ${RF.chs.includes(c.ch) ? "checked" : ""}>الفصل ${c.ch} <span class="tiny">${esc(c.title)}</span></label>`).join("")}</div></div>
+        <div class="row wrap"><div class="seg ${RF.kind === "det" ? "" : "hide"}" id="fShow"><button data-s="level" aria-pressed="${RF.show === "level"}">الخلايا: المستوى 1–4</button><button data-s="mark" aria-pressed="${RF.show === "mark"}">الخلايا: النسبة</button></div>
+          <div class="seg" id="fOrient"><button data-o="auto" aria-pressed="${RF.orient === "auto"}">A4 تلقائي</button><button data-o="portrait" aria-pressed="${RF.orient === "portrait"}">A4 عمودي</button><button data-o="landscape" aria-pressed="${RF.orient === "landscape"}">A4 أفقي</button></div>
+          <span class="grow"></span><button class="btn primary" id="fPrint">${ic("printer", "sm")}طباعة / PDF</button><button class="btn outline" id="fXlsx">Excel منسّق</button></div></div>
+      <div class="rec-scroll" style="margin-top:14px"><div class="paper" id="recPaper"><div class="loading" style="padding:20px">جارٍ التحضير…</div></div></div>`;
+    const re = () => route();
+    loadLogo();
+    const preview = async () => { const box = el.querySelector("#recPaper"); try { const ms = await rmodels(); if (box.isConnected) box.innerHTML = ms.map(rhtml).join(""); } catch (e) { box.innerHTML = emptyBox("alert", "تعذّر تحضير السجل", esc(e.message)); } };
+    el.querySelectorAll(".kind").forEach((b) => (b.onclick = () => { RF.kind = b.dataset.k; re(); }));
+    el.querySelector("#fSecs").onchange = (e) => { RF.secs = e.target.value; preview(); };
+    el.querySelector("#fOnly").onchange = (e) => { RF.only = e.target.value; preview(); };
+    el.querySelector("#fSort").onchange = (e) => { RF.sort = e.target.value; preview(); };
+    el.querySelectorAll(".fC").forEach((cb) => (cb.onchange = () => { RF.chs = RF.chs.filter((x) => x !== +cb.dataset.c); if (cb.checked) RF.chs.push(+cb.dataset.c); preview(); }));
+    el.querySelectorAll("#fShow button").forEach((b) => (b.onclick = () => { RF.show = b.dataset.s; re(); }));
+    el.querySelectorAll("#fOrient button").forEach((b) => (b.onclick = () => { RF.orient = b.dataset.o; re(); }));
+    el.querySelector("#fPrint").onclick = async () => { try { await loadLogo(); const ms = await rmodels(); printDoc(ms[0].title + " — " + ms[0].sub, ms.map(rhtml).join(""), ms[0].orient); } catch (e) { toast(e.message, true); } };
+    el.querySelector("#fXlsx").onclick = async (e) => { spin(e.target, true); try { const ms = await rmodels(); await rxlsx(ms, ms[0].title + " - " + (RF.secs === "all" ? "كل الشعب" : sec().name)); } catch (x) { toast(x.message, true); } spin(e.target, false); };
+    preview();
   } };
 
   // ===================== البداية =====================

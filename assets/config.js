@@ -8,5 +8,5 @@ window.APP_CONFIG = {
   LECTURER: "سهم هلالات العجارمة",
   CONTACT_PHONE: "0777478595",
   WHATSAPP: "https://whatsapp.com/channel/0029VbDEOn26hENv5mIE1m0L",
-  VERSION: "1.2"
+  VERSION: "1.3"
 };
