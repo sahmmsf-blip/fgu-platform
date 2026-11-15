@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-skin="navy">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d2340">
+<meta name="description" content="منصة مقرر الإدارة المالية – تطبيقات في ريادة الأعمال، جامعة فلوريدا العالمية: علاماتك، واختباراتك القصيرة، ومدى إتقانك لكل هدف من أهداف التعلّم.">
+<title>منصة مقرر الإدارة المالية — جامعة فلوريدا العالمية</title>
+<link rel="icon" href="assets/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/brand.css?v=1.2">
+<link rel="stylesheet" href="assets/fgu.css?v=1.2">
+</head>
+<body>
+
+<!-- ======================= الموقع + الدخول ======================= -->
+<div id="vLogin" class="hide">
+  <header class="site-nav" id="siteNav"><div class="container">
+    <a class="brand" href="#top"><span data-logo></span><span class="wm"><b>جامعة فلوريدا العالمية</b><span>الإدارة المالية · ريادة الأعمال</span></span></a>
+    <nav aria-label="أقسام الموقع">
+      <a href="#how">كيف تعمل</a><a href="#features">المزايا</a><a href="#course">المقرر</a><a href="#lecturer">للمحاضر</a><a href="#contact">تواصل</a>
+    </nav>
+    <div class="end">
+      <button class="iconbtn langbtn" data-lang-toggle type="button">EN</button>
+      <button class="iconbtn" id="skinBtnL" title="المظهر" aria-label="تغيير المظهر"><i data-ic="palette"></i></button>
+      <a class="btn outline sm hide-sm" href="teacher.html"><i data-ic="key" class="sm"></i>دخول المحاضر</a>
+    </div>
+  </div></header>
+
+  <section class="free-strip"><div class="container"><a href="#course">
+    <span class="fs-ic"><i data-ic="book"></i></span><span class="fs-t"><b>كتاب المقرر: الإدارة المالية – تطبيقات في ريادة الأعمال</b>
+    <span>عشرة فصول · 51 هدفًا من أهداف التعلّم · من الدولار الأول إلى الخطة المالية لمشروعك</span></span><span class="btn gold sm">تعرّف إلى المقرر <i data-ic="left" class="sm"></i></span></a></div></section>
+  <section class="hero" id="top"><div class="container">
+    <div class="reveal">
+      <span class="eyebrow">التعليم المهني والمستمر · برنامج ريادة الأعمال</span>
+      <h1>منصة مقرر <em>الإدارة المالية</em><br>تطبيقات في ريادة الأعمال</h1>
+      <p class="lead">علاماتك في كل مكوّن من مكوّنات المقرر لحظة رصدها، واختبارات قصيرة إلكترونية تُعاد وتُحتسب أفضل محاولة فيها، وخريطة دقيقة لإتقانك لكل هدف من أهداف الفصول.</p>
+      <div class="trust">
+        <div><i data-ic="target"></i>قياس على مستوى الهدف</div>
+        <div><i data-ic="refresh"></i>إعادة الاختبار القصير</div>
+        <div><i data-ic="shield"></i>حساب محمي بكلمة مرور</div>
+      </div>
+    </div>
+
+    <div class="portal reveal" id="portal">
+      <div class="seg" role="tablist"><button class="on" role="tab" aria-selected="true"><i data-ic="user" class="sm"></i>طالب</button><a href="teacher.html" role="tab"><i data-ic="key" class="sm"></i>محاضر</a></div>
+      <div id="loginBox">
+        <div class="p-head"><div class="badge"><i data-ic="id"></i></div><div><h2>دخول الطالب</h2><div class="tiny">بالرقم الجامعي وكلمة المرور</div></div></div>
+        <form id="loginForm" autocomplete="on" novalidate>
+          <div id="loginErr" class="err hide" role="alert"></div>
+          <label class="field"><span>الرقم الجامعي</span><input class="input mono" id="uid" name="username" autocomplete="username" dir="ltr" required placeholder="مثال: 2620011016"></label>
+          <label class="field"><span>كلمة المرور</span>
+            <div style="position:relative"><input class="input" id="pass" type="password" autocomplete="current-password" dir="ltr" style="padding-inline-start:46px" required>
+              <button class="iconbtn" type="button" id="eye" style="position:absolute;inset-inline-start:5px;top:5px" aria-label="إظهار كلمة المرور"><i data-ic="eye"></i></button></div></label>
+          <label class="check"><input type="checkbox" id="remember" checked> تذكّرني على هذا الجهاز</label>
+          <button class="btn primary block lg" id="loginBtn" type="submit">دخول إلى صفحتي <i data-ic="left"></i></button>
+          <div class="login-help"><button type="button" class="btn ghost sm" id="helpBtn"><i data-ic="help" class="sm"></i>نسيت كلمة المرور؟</button></div>
+        </form>
+      </div>
+      <div id="changeBox" class="hide">
+        <div class="p-head"><div class="badge"><i data-ic="lock"></i></div><div><h2>اختر كلمة مرورك</h2><div class="tiny">أول دخول، أو أُعيدت كلمة مرورك إلى رقمك الجامعي</div></div></div>
+        <form id="changeForm" autocomplete="off" novalidate>
+          <div id="changeErr" class="err hide" role="alert"></div>
+          <p class="tiny" style="margin-bottom:12px">8 أحرف على الأقل، فيها حروف إنجليزية وأرقام، وليست رقمك الجامعي.</p>
+          <label class="field" id="oldWrap"><span>كلمة المرور الحالية (رقمك الجامعي)</span><input class="input" id="oldPass" type="password" dir="ltr" autocomplete="current-password"></label>
+          <label class="field"><span>كلمة المرور الجديدة</span><input class="input" id="new1" type="password" dir="ltr" autocomplete="new-password"></label>
+          <label class="field"><span>أعد كتابتها</span><input class="input" id="new2" type="password" dir="ltr" autocomplete="new-password"></label>
+          <button class="btn primary block lg" id="changeBtn" type="submit">حفظ ومتابعة <i data-ic="left"></i></button>
+          <div class="step-dots"><i class="on"></i><i class="on"></i><i></i></div>
+        </form>
+      </div>
+      <div id="welcomeBox" class="welcome hide" aria-live="polite">
+        <div class="ok"><i data-ic="check" class="lg"></i></div>
+        <h2 id="wName">أهلًا</h2><p class="muted" style="margin-top:6px">نجهّز صفحتك الآن…</p>
+        <div class="step-dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="sec alt" id="how"><div class="container">
+    <div class="sec-head reveal"><span class="eyebrow">ثلاث خطوات</span><h2>من الدخول إلى معرفة مستواك</h2><p>تدخل أول مرة برقمك الجامعي اسمًا وكلمةَ مرور، ثم تختار كلمتك الخاصة.</p></div>
+    <div class="steps">
+      <div class="card reveal"><div class="ibox"><i data-ic="id"></i></div><h3>ادخل برقمك الجامعي</h3><p>وكلمة المرور التي اخترتها. نسيتها؟ يعيدها المحاضر إلى رقمك الجامعي.</p></div>
+      <div class="card reveal"><div class="ibox"><i data-ic="file"></i></div><h3>حلّ اختباراتك القصيرة</h3><p>أسئلة مختلفة في كل محاولة، وتُحفظ إجاباتك تلقائيًّا، وتُحتسب أفضل محاولة لك.</p></div>
+      <div class="card reveal"><div class="ibox gold"><i data-ic="chart"></i></div><h3>اعرف مستواك</h3><p>علامتك في كل مكوّن، ومجموعك حتى الآن، ومستواك في كل هدف من أهداف الفصول.</p></div>
+    </div>
+  </div></section>
+
+  <section class="sec" id="features"><div class="container">
+    <div class="sec-head reveal"><span class="eyebrow">ما الذي يميّز المنصة</span><h2>كل علامة مبنية على أهداف التعلّم</h2></div>
+    <div class="feat reveal">
+      <div><div class="ibox"><i data-ic="target"></i></div><h3>كل سؤال مرتبط بهدف</h3><p>النتيجة لا تقف عند رقم؛ بل تُفصَّل على أهداف فصول الكتاب واحدًا واحدًا.</p></div>
+      <div><div class="ibox"><i data-ic="layers"></i></div><h3>أسئلة مختلفة في كل محاولة</h3><p>سحب عشوائي من بنك الأسئلة وخلط للخيارات، فلا تتشابه محاولتان.</p></div>
+      <div><div class="ibox"><i data-ic="award"></i></div><h3>توزيع العلامات المعتمد</h3><p>النهائي 30٪، ومنتصف الفصل 25٪، والمشروع الختامي 20٪، والاختبارات القصيرة 15٪، والمشاركة 10٪.</p></div>
+      <div><div class="ibox gold"><i data-ic="spark"></i></div><h3>ابدأ بالأضعف</h3><p>خريطة أهدافك تُظهر أين أتقنت وأين تحتاج أن تراجع قبل الاختبار القادم.</p></div>
+      <div><div class="ibox"><i data-ic="clock"></i></div><h3>مواعيد واضحة</h3><p>كل اختبار قصير له موعد فتح وإغلاق ومدة، وتظهر الإجابات الصحيحة بعد إغلاقه.</p></div>
+      <div><div class="ibox"><i data-ic="palette"></i></div><h3>مظهر يناسبك</h3><p>سمات هادئة مريحة للعين، منها الليلي للمذاكرة المسائية.</p></div>
+    </div>
+  </div></section>
+
+  <section class="sec alt" id="course"><div class="container">
+    <div class="sec-head reveal"><span class="eyebrow">المقرر</span><h2>الإدارة المالية – تطبيقات في ريادة الأعمال</h2><p>يبدأ كل موضوع بالمبادئ التي تستعملها كل منشأة، ثم يطبّقها على المشاريع الناشئة، وتنهي المقرر بخطة مالية لفكرتك الريادية.</p></div>
+    <div class="feat reveal" id="chapList"></div>
+  </div></section>
+
+  <section id="lecturer"><div class="container">
+    <div class="band reveal">
+      <div><span class="eyebrow" style="color:var(--gold)">للمحاضر</span><h2 style="margin-top:10px">لوحة تحكّم كاملة للمقرر</h2>
+        <p>الشُّعب والفصول الدراسية، والطلبة بالرقم الجامعي، ورصد العلامات مقسّمة على الأهداف، والاختبارات القصيرة، وسجل علامات موزون جاهز للتصدير.</p>
+        <ul><li><i data-ic="check"></i>إضافة الطلبة لصقًا من Excel</li><li><i data-ic="check"></i>إعادة كلمة المرور لمن نسي</li>
+            <li><i data-ic="check"></i>إتقان كل هدف ونتاج</li><li><i data-ic="check"></i>طلبة الفصول السابقة بحساباتهم</li></ul></div>
+      <div style="text-align:center"><a class="btn gold lg" href="teacher.html"><i data-ic="key"></i>دخول المحاضر</a></div>
+    </div>
+  </div></section>
+
+  <footer class="site-foot" id="contact"><div class="container">
+    <div style="max-width:380px">
+      <a class="brand" href="#top"><span data-logo></span><span class="wm"><b>جامعة فلوريدا العالمية</b><span>التعليم المهني والمستمر</span></span></a>
+      <p class="tiny" style="margin-top:12px">منصة مقرر الإدارة المالية – تطبيقات في ريادة الأعمال، برنامج ريادة الأعمال. المحاضر: سهم هلالات العجارمة.</p>
+    </div>
+    <div class="cols">
+      <div><b>تواصل</b><a href="tel:0777478595" dir="ltr" style="text-align:right">0777 478 595</a><a href="https://whatsapp.com/channel/0029VbDEOn26hENv5mIE1m0L" target="_blank" rel="noopener">قناة الواتساب</a></div>
+      <div><b>الدخول</b><a href="#portal">الطالب</a><a href="teacher.html">المحاضر</a></div>
+    </div>
+    <div class="copy">© <span id="yr"></span> جامعة فلوريدا العالمية — منصة مقرر الإدارة المالية · الإصدار 1.2</div>
+  </div></footer>
+</div>
+
+<!-- ======================= لوحة الطالب ======================= -->
+<div id="vHome" class="hide">
+  <header class="appbar"><div class="container">
+    <a class="brand" href="#" id="homeLink"><span data-logo></span><span class="wm"><b>جامعة فلوريدا العالمية</b><span>صفحة الطالب</span></span></a>
+    <div class="who"><b id="hName">—</b><span class="avatar" id="hAv">—</span></div>
+    <button class="iconbtn langbtn" data-lang-toggle type="button">EN</button>
+    <button class="iconbtn" id="refreshBtn" title="تحديث" aria-label="تحديث"><i data-ic="refresh"></i></button>
+    <button class="iconbtn" id="skinBtn" title="المظهر" aria-label="تغيير المظهر"><i data-ic="palette"></i></button>
+    <button class="iconbtn" id="logoutBtn" title="خروج" aria-label="تسجيل الخروج"><i data-ic="logout"></i></button>
+  </div></header>
+  <main class="dash container" id="dash"></main>
+</div>
+
+<!-- ======================= الاختبار ======================= -->
+<section id="vExam" class="hide noselect">
+  <div class="exam-top"><div class="container">
+    <div class="grow"><div style="font-weight:700;font-family:var(--f-disp)" id="xTitle"></div>
+      <div class="tiny"><span id="xProg"></span> · <span id="xSaved">—</span></div></div>
+    <div class="timer mono" id="xTimer">--:--</div>
+  </div>
+  <div class="bar"><i id="xBar" style="width:0"></i></div></div>
+  <main class="exam-main">
+    <div class="card qcard" id="xCard"></div>
+    <div class="row sp" style="margin-top:14px">
+      <button class="btn outline" id="xPrev"><i data-ic="right" class="sm"></i>السابق</button>
+      <button class="btn ghost sm" id="xFlag"><i data-ic="flag" class="sm"></i>علّم للمراجعة</button>
+      <button class="btn primary" id="xNext">التالي<i data-ic="left" class="sm"></i></button>
+    </div>
+    <div class="card pad" style="margin-top:16px">
+      <div class="row sp" style="margin-bottom:12px"><b style="font-size:14px">خريطة الأسئلة</b>
+        <span class="tiny"><span style="color:var(--accent)">■</span> مُجاب · <span style="color:var(--gold)">●</span> معلَّم</span></div>
+      <div class="qnav" id="xNav"></div>
+      <button class="btn primary block lg" id="xSubmit" style="margin-top:16px">تسليم الإجابات</button>
+    </div>
+  </main>
+</section>
+
+<!-- ======================= النتيجة ======================= -->
+<section id="vResult" class="hide">
+  <header class="appbar"><div class="container"><span data-logo class="brand"></span><h2 id="rTitle" style="font-size:18px">النتيجة</h2></div></header>
+  <main class="exam-main"><div id="rBody"></div>
+    <button class="btn primary block lg" id="rBack" style="margin-top:16px">العودة إلى صفحتي</button></main>
+</section>
+
+<script src="assets/config.js?v=1.2"></script>
+<script src="assets/icons.js?v=1.2"></script>
+<script src="assets/common.js?v=1.2"></script>
+<script src="assets/f-core.js?v=1.2"></script>
+<script src="assets/f-i18n.js?v=1.2"></script>
+<script src="assets/f-student.js?v=1.2.1"></script>
+</body>
+</html>
