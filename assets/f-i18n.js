@@ -59,7 +59,7 @@
     "منصة مقرر الإدارة المالية – تطبيقات في ريادة الأعمال، برنامج ريادة الأعمال. المحاضر: سهم هلالات العجارمة.":
       "Course platform for Financial Management – Applications in Entrepreneurship, Entrepreneurship Program. Lecturer: Sahm Hlalat Al-Ajarmeh.",
     "قناة الواتساب": "WhatsApp channel", "الدخول": "Login", "الطالب": "Student", "المحاضر": "Lecturer",
-    "جامعة فلوريدا العالمية — منصة مقرر الإدارة المالية · الإصدار 1.2": "Florida Global University — Financial Management course platform · Version 1.2",
+    "جامعة فلوريدا العالمية — منصة مقرر الإدارة المالية · الإصدار 1.4": "Florida Global University — Financial Management course platform · Version 1.4",
     "صفحة الطالب": "Student page",
     "السابق": "Previous", "علّم للمراجعة": "Flag for review", "التالي": "Next", "خريطة الأسئلة": "Question map",
     "مُجاب ·": "answered ·", "معلَّم": "flagged", "تسليم الإجابات": "Submit answers", "النتيجة": "Result", "العودة إلى صفحتي": "Back to my page",
@@ -111,6 +111,16 @@
     "يجب تغيير كلمة المرور أولًا": "You must change your password first",
     "تعذّر الاتصال بالإنترنت. تحقّق من الشبكة وحاول مجددًا.": "Could not connect to the internet. Check your connection and try again.",
     "حدث خطأ غير متوقع": "An unexpected error occurred",
+    "هذا الواجب غير متاح لك": "This assignment is not available to you",
+    "حجم الملف يجب ألا يتجاوز 4 ميغابايت": "The file must not exceed 4 MB", "اسم الملف فارغ": "The file name is empty",
+    "هذا الواجب لا يقبل الملفات": "This assignment does not accept files", "نوع الملف غير مسموح في هذا الواجب": "This file type is not allowed in this assignment",
+    "لا يمكن تعديل التسليم الآن": "Your submission cannot be changed now", "وصلت إلى الحد الأقصى لعدد الملفات": "You have reached the maximum number of files",
+    "الملف غير متاح للرفع": "The file is not available for upload", "الملف غير متاح": "The file is not available", "الملف فارغ": "The file is empty",
+    "الملف غير موجود": "File not found", "أُرشف هذا الملف وحُذف من المنصة": "This file was archived and removed from the platform",
+    "النص طويل جدًا": "The text is too long", "لا يمكن التسليم الآن": "Submission is not possible now",
+    "يجب الإقرار بأن العمل من إنجازك قبل التسليم": "You must confirm the work is your own before submitting",
+    "لا يوجد ما يُسلَّم: اكتب إجابتك أو أرفق ملفًا": "Nothing to submit: write your answer or attach a file",
+    "الواجب غير موجود": "Assignment not found", "تعذّر تحميل مكتبة الضغط؛ تحقق من الاتصال": "Could not load the compression library; check your connection",
   };
   const T = (ar, en) => (lang === "en" ? en : ar);
   // البيانات القادمة من قاعدة البيانات: الحقل الإنجليزي إن وُجد

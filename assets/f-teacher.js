@@ -116,13 +116,15 @@
     if (never) alerts.push({ lvl: "tip", ic: "id", msg: `${never} طالبًا لم يدخلوا المنصة بعد`, sub: "يدخل كل طالب برقمه الجامعي، وكلمة مروره الأولى هي رقمه الجامعي نفسه.", go: "#people", act: "الطلبة" });
     if (!c.qcount) alerts.push({ lvl: "warn", ic: "layers", msg: "بنك الأسئلة فارغ", sub: "الاختبارات القصيرة الإلكترونية تحتاج أسئلة مربوطة بالأهداف.", go: "#bank", act: "بنك الأسئلة" });
     S.assess.filter((a) => a.kind === "manual" && a.entered < st.length && st.length).slice(0, 3).forEach((a) => alerts.push({ lvl: "tip", ic: "file", msg: `«${a.title}» رُصد لـ ${a.entered} من ${st.length}`, sub: "أكمل رصد العلامات.", go: "#assess", act: "رصد" }));
+    S.assess.filter((a) => a.kind === "assignment" && a.ungraded).forEach((a) => alerts.push({ lvl: "warn", ic: "inbox", msg: `«${a.title}»: ${a.ungraded} تسليمًا بانتظار التصحيح`, sub: "صحّح بالروبرك، ثم انشر العلامات ليراها الطلبة.", go: "#grade/" + a.id, act: "صحّح" }));
+    S.assess.filter((a) => a.kind === "assignment" && !(a.assign && a.assign.released) && a.graded && a.graded >= a.subs && a.close_at && new Date(a.close_at) < new Date()).forEach((a) => alerts.push({ lvl: "tip", ic: "eye", msg: `«${a.title}» صُحّح ولم تُنشر علاماته`, sub: "لا يرى الطلبة علاماتهم حتى تنشرها.", go: "#grade/" + a.id, act: "انشر" }));
     S.assess.filter((a) => !a.published).slice(0, 3).forEach((a) => alerts.push({ lvl: "tip", ic: "eyeoff", msg: `«${a.title}» مخفي عن الطلبة`, sub: "انشره ليظهر في صفحاتهم.", go: "#assess", act: "التقويمات" }));
     let h = `<div class="vhead"><div><h2>${greet()}، الأستاذ ${esc(firstName(S.boot.me.full_name))}</h2>
       <p>${esc(new Intl.DateTimeFormat("ar-JO-u-nu-latn", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Amman" }).format(new Date()))} · الشعبة الحالية: <b>${esc(s0.name)}</b></p></div>
       <div class="toolbar"><a class="btn primary" href="#assess">${ic("file", "sm")}تقويم جديد</a><a class="btn outline" href="#book">${ic("award", "sm")}سجل العلامات</a><a class="btn outline" href="#people">${ic("users", "sm")}الطلبة</a></div></div>`;
     h += `<div class="kpi-row">
       <div class="kp">${ic("users")}<b class="num">${st.length}</b><span>طالبًا في الشعبة</span><small>${st.length - never} منهم دخلوا المنصة</small></div>
-      <div class="kp">${ic("award")}<b class="num">${avg != null ? nf(avg, 1) : "—"}</b><span>متوسط المجموع</span><small>من ${nf(ws, 0)} محتسبة حتى الآن</small></div>
+      <div class="kp">${ic("award")}<b class="num">${avg != null ? nf(avg, 1) : "—"}</b><span>متوسط المجموع</span><small>${ws ? "من " + nf(ws, 0) + " محتسبة حتى الآن" : "من 100 — لم تُرصد علامات بعد"}</small></div>
       <div class="kp">${ic("file")}<b class="num">${S.assess.length}</b><span>تقويمًا في الشعبة</span><small>${quizzes.length} منها اختبارات قصيرة</small></div>
       <div class="kp ${risks.length ? "warn" : ""}">${ic("alert")}<b class="num">${risks.length}</b><span>يحتاجون دعمًا</span><small>نسبتهم أقل من 60٪ مما احتُسب</small></div>
       <div class="kp">${ic("layers")}<b class="num">${c.qcount}</b><span>سؤالًا في البنك</span><small>${openQ.length} اختبار مفتوح الآن</small></div></div>`;
@@ -231,17 +233,18 @@
     h += c.components.map((k) => { const A = S.assess.filter((a) => a.component_id === k.id);
       return `<div class="sect"><h3>${ic(k.kind === "quiz" ? "file" : k.kind === "project" ? "flag" : k.kind === "tasks" ? "check" : "award", "sm")}${esc(k.title)} <span class="pill">${nf(+k.weight, 0)}٪</span></h3>` +
         (A.length ? '<div class="g2">' + A.map((a) => { const codes = a.kind === "quiz" ? (a.quiz.objectives || []) : [...new Set(a.parts.map((p) => p.objective_code))];
-          const prog = a.kind === "quiz" ? a.takers : a.entered, of = st.length || 1;
-          return `<div class="card secard"><div class="row sp"><b style="font-family:var(--f-disp)">${esc(a.title)}</b><span class="pill ${a.published ? "open" : "scheduled"}">${a.published ? "منشور" : "مخفي"}</span></div>
-            <div class="tiny">${a.kind === "quiz" ? `اختبار قصير · ${a.quiz.n} أسئلة${a.quiz.minutes ? " · " + a.quiz.minutes + " د" : ""} · ${a.attempts} محاولة من ${a.takers} طالبًا${a.close_at ? " · يُغلق " + esc(fmtDT(a.close_at, false)) : ""}` : `يدوي · ${a.parts.length} أجزاء · من ${nf(+a.max_score, 2)} · رُصد لـ ${a.entered} من ${st.length}`}${a.counted ? "" : " · لا يُحتسب"}</div>
+          const isA = a.kind === "assignment", prog = a.kind === "quiz" ? a.takers : isA ? a.subs : a.entered, of = st.length || 1;
+          return `<div class="card secard"><div class="row sp"><b style="font-family:var(--f-disp)">${esc(a.title)}</b><span class="row" style="gap:4px">${isA ? `<span class="pill ${a.assign && a.assign.released ? "brand" : ""}">${a.assign && a.assign.released ? "العلامات منشورة" : "العلامات غير منشورة"}</span>` : ""}<span class="pill ${a.published ? "open" : "scheduled"}">${a.published ? "منشور" : "مخفي"}</span></span></div>
+            <div class="tiny">${isA ? `واجب على المنصة · ${a.parts.length} معايير روبرك · من ${nf(+a.max_score, 2)} · سلّم ${a.subs} من ${st.length} · صُحّح ${a.graded}${a.ungraded ? ` · <b style="color:var(--accent)">ينتظر التصحيح ${a.ungraded}</b>` : ""} · الموعد ${esc(fmtDT(a.close_at, false))}${a.counted ? "" : " · لا يُحتسب"}` : a.kind === "quiz" ? `اختبار قصير · ${a.quiz.n} أسئلة${a.quiz.minutes ? " · " + a.quiz.minutes + " د" : ""} · ${a.attempts} محاولة من ${a.takers} طالبًا${a.close_at ? " · يُغلق " + esc(fmtDT(a.close_at, false)) : ""}` : `يدوي · ${a.parts.length} أجزاء · من ${nf(+a.max_score, 2)} · رُصد لـ ${a.entered} من ${st.length}`}${isA || a.counted ? "" : " · لا يُحتسب"}</div>
             <div class="meter"><i style="width:${Math.round(prog / of * 100)}%"></i></div>
             <div class="row wrap" style="gap:4px">${codes.slice(0, 10).map((x) => `<span class="lbl-chip" dir="ltr">${x}</span>`).join("")}${codes.length > 10 ? `<span class="tiny">+${codes.length - 10}</span>` : ""}</div>
-            <div class="row" style="gap:6px">${a.kind === "manual" ? `<button class="btn sm primary" data-marks="${a.id}">${ic("check", "sm")}رصد العلامات</button>` : ""}<button class="btn sm outline" data-ed="${a.id}">تعديل</button><button class="btn sm ghost" data-del="${a.id}">حذف</button></div></div>`; }).join("") + "</div>"
+            <div class="row wrap" style="gap:6px">${a.kind === "manual" ? `<button class="btn sm primary" data-marks="${a.id}">${ic("check", "sm")}رصد العلامات</button>` : ""}${isA ? `<a class="btn sm primary" href="#grade/${a.id}">${ic("inbox", "sm")}التسليمات والتصحيح</a><button class="btn sm outline" data-rel="${a.id}">${a.assign && a.assign.released ? "إخفاء العلامات" : "نشر العلامات"}</button>` : ""}<button class="btn sm outline" data-ed="${a.id}">تعديل</button><button class="btn sm ghost" data-del="${a.id}">حذف</button></div></div>`; }).join("") + "</div>"
           : '<div class="card pad tiny">لا تقويمات في هذا المكوّن بعد.</div>') + "</div>"; }).join("");
     el.innerHTML = h;
     el.querySelector("#aNew").onclick = () => editAssessment(null);
     el.querySelectorAll("[data-ed]").forEach((b) => (b.onclick = () => editAssessment(S.assess.find((a) => a.id === b.dataset.ed))));
     el.querySelectorAll("[data-marks]").forEach((b) => (b.onclick = () => marks(S.assess.find((a) => a.id === b.dataset.marks))));
+    el.querySelectorAll("[data-rel]").forEach((b) => (b.onclick = async () => { const a = S.assess.find((x) => x.id === b.dataset.rel); if (await releaseFlow(a.id, !(a.assign && a.assign.released), a.title, a.ungraded)) await reload(); }));
     el.querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
       const a = S.assess.find((x) => x.id === b.dataset.del);
       if (!(await confirmSheet("حذف التقويم", `سيُحذف «${esc(a.title)}» نهائيًّا مع كل علاماته ومحاولات الطلبة فيه.`, "حذف", true))) return;
@@ -261,7 +264,7 @@
     const s = openSheet(`<h3>${a ? "تعديل تقويم" : "تقويم جديد"}</h3>
       <div class="fields two"><label class="field"><span>المكوّن (من توزيع العلامات)</span><select class="input" id="xC">${opt(k0, c.components.map((k) => [k.id, k.title + " (" + nf(+k.weight, 0) + "٪)"]))}</select></label>
         <label class="field"><span>العنوان</span><input class="input" id="xT" value="${esc(a ? a.title : "")}" placeholder="مثال: اختبار الفصل 6 / المحطة 3"></label></div>
-      <label class="field"><span>طريقة التقويم</span><select class="input" id="xK" ${a ? "disabled" : ""}><option value="manual">يدوي: أرصد العلامات بنفسي مقسّمة على الأهداف</option><option value="quiz">اختبار قصير إلكتروني يحلّه الطالب على المنصة</option></select></label>
+      <label class="field"><span>طريقة التقويم</span><select class="input" id="xK" ${a ? "disabled" : ""}><option value="manual">يدوي: أرصد العلامات بنفسي مقسّمة على الأهداف</option><option value="quiz">اختبار قصير إلكتروني يحلّه الطالب على المنصة</option><option value="assignment">واجب / ورقة عمل يسلّمها الطالب على المنصة ويُصحَّح بروبرك</option></select></label>
       <div class="row wrap" style="gap:16px;margin-bottom:10px"><label class="check"><input type="checkbox" id="xP" ${a && a.published ? "checked" : ""}> منشور للطلبة</label><label class="check"><input type="checkbox" id="xN" ${!a || a.counted ? "checked" : ""}> يُحتسب في العلامة</label></div>
       <div id="xMan"><div class="tipbox tiny" style="margin-bottom:10px">قسّم التقويم إلى أجزاء (أسئلة أو بنود معيار تصحيح) واربط كل جزء بهدف؛ فتُحسب العلامة وإتقان كل هدف تلقائيًّا.</div>
         <div class="partrow tiny" style="font-weight:700"><span>الجزء</span><span>الهدف</span><span>العلامة القصوى</span><span></span></div><div id="xParts"></div>
@@ -276,11 +279,13 @@
           <label class="field"><span>يُغلق في</span><input class="input" type="datetime-local" id="qC" value="${a && a.close_at ? toLocalInput(a.close_at) : ""}"></label></div>
         <div class="tipbox tiny" style="margin-bottom:10px">حسب الخطة الدراسية: يُعاد الاختبار القصير وتُحتسب أفضل محاولة. تُسحب أسئلة عشوائية من الأهداف المختارة مع خلط البدائل، وتظهر الإجابات الصحيحة بعد الإغلاق فقط، ومن لم يحلّه حتى الإغلاق يُحسب له صفر.</div>
         <b style="font-size:14px">الأهداف التي يقيسها <span class="tiny" id="qAv"></span></b>${objPicker(a && a.quiz ? a.quiz.objectives : [])}</div>
+      ${asgForm(a)}
       <button class="btn primary block lg" id="xS" style="margin-top:14px">حفظ التقويم</button>`, true);
     const kS = s.querySelector("#xK"); kS.value = a ? a.kind : (isQ(k0) ? "quiz" : "manual");
-    const showK = () => { s.querySelector("#xMan").classList.toggle("hide", kS.value !== "manual"); s.querySelector("#xQuiz").classList.toggle("hide", kS.value !== "quiz"); };
+    const showK = () => { s.querySelector("#xMan").classList.toggle("hide", kS.value !== "manual"); s.querySelector("#xQuiz").classList.toggle("hide", kS.value !== "quiz"); s.querySelector("#xAsg").classList.toggle("hide", kS.value !== "assignment"); };
     s.querySelector("#xC").onchange = () => { if (!a) { kS.value = isQ(s.querySelector("#xC").value) ? "quiz" : "manual"; showK(); } };
     kS.onchange = showK; showK();
+    const AW = asgWire(s, a, objOpts);
     const box = s.querySelector("#xParts");
     const sum = () => (s.querySelector("#xSum").textContent = [...box.querySelectorAll("[data-pm]")].reduce((t, x) => t + (+x.value || 0), 0));
     const addRow = (p) => { const d = document.createElement("div"); d.className = "partrow"; if (p && p.id) d.dataset.id = p.id;
@@ -295,11 +300,16 @@
     s.querySelectorAll("input[name=qo]").forEach((x) => (x.onchange = upd)); upd();
     s.querySelector("#xS").onclick = async (e) => {
       const p = { id: a ? a.id : null, section_id: S.sec, component_id: s.querySelector("#xC").value, title: s.querySelector("#xT").value, kind: kS.value, published: s.querySelector("#xP").checked, counted: s.querySelector("#xN").checked };
-      if (p.kind === "manual") { p.parts = [...box.children].map((d) => ({ id: d.dataset.id || null, label: d.querySelector("[data-pl]").value, objective_code: d.querySelector("[data-po]").value, max_score: +d.querySelector("[data-pm]").value })); if (p.parts.some((x) => !(x.max_score > 0))) return toast("العلامة القصوى لكل جزء يجب أن تكون أكبر من صفر", true); }
+      if (p.kind === "assignment") { try { Object.assign(p, AW.collect()); } catch (x) { return toast(x.message, true); } }
+      else if (p.kind === "manual") { p.parts = [...box.children].map((d) => ({ id: d.dataset.id || null, label: d.querySelector("[data-pl]").value, objective_code: d.querySelector("[data-po]").value, max_score: +d.querySelector("[data-pm]").value })); if (p.parts.some((x) => !(x.max_score > 0))) return toast("العلامة القصوى لكل جزء يجب أن تكون أكبر من صفر", true); }
       else { p.max_score = +s.querySelector("#qM").value; p.open_at = fromLocalInput(s.querySelector("#qO").value); p.close_at = fromLocalInput(s.querySelector("#qC").value);
         p.quiz = { n: +s.querySelector("#qN").value, minutes: +s.querySelector("#qT").value, attempts: +s.querySelector("#qA").value, objectives: [...s.querySelectorAll("input[name=qo]:checked")].map((x) => x.value) }; }
       spin(e.target, true, "جارٍ الحفظ…");
-      try { await rpc("t_save_assessment", { p }); closeSheet(); toast("حُفظ التقويم"); await reload(); } catch (x) { toast(x.message, true); spin(e.target, false); }
+      try {
+        const r = await rpc("t_save_assessment", { p });
+        for (const f of AW.pending) { try { await FF.upload(f, { assessment: r.id, role: "brief" }); } catch (x) { toast("«" + f.name + "»: " + x.message, true); } }
+        closeSheet(); toast("حُفظ التقويم"); await reload();
+      } catch (x) { toast(x.message, true); spin(e.target, false); }
     };
   }
   async function marks(a) {
@@ -325,18 +335,19 @@
   // ===================== سجل العلامات =====================
   VIEWS.book = { title: "سجل العلامات", secAware: true, render(el) {
     const B = S.book, st = B.students, byC = B.components.map((k) => ({ k, A: B.assessments.filter((a) => a.component_id === k.id) }));
-    let h = `<div class="vhead"><div><h2>سجل علامات ${esc(sec().name)}</h2><p>النسبة لكل تقويم من 100٪. علامة المكوّن = متوسط تقويماته × وزنه، والمجموع من الأوزان المحتسبة حتى الآن.</p></div>
+    const G2 = F.evalGroups(B.components).find((g) => g.key === "second"), lastSecond = G2 ? G2.comps[G2.comps.length - 1].id : null;
+    let h = `<div class="vhead"><div><h2>سجل علامات ${esc(sec().name)}</h2><p>النسبة لكل تقويم من 100٪. المنتصف والنهائي والمشروع: علامة التقويم نفسه. المشاركة والمهام والكويزات: لكل هدف قيس فيها ${course().obj_rule === "latest" ? "أحدث" : "أعلى"} قياس، ثم متوسط الأهداف × الوزن. والمجموع من الأوزان المحتسبة حتى الآن.</p></div>
       <div class="toolbar"><button class="btn outline" id="bCsv">${ic("file", "sm")}تصدير Excel</button><button class="btn outline" onclick="window.print()">${ic("printer", "sm")}طباعة</button></div></div>`;
-    h += st.length ? `<div class="tw"><table class="t sticky1"><thead><tr><th rowspan="2">الطالب</th>${byC.map((x) => `<th class="num" colspan="${x.A.length + 1}">${esc(x.k.title)} (${nf(+x.k.weight, 0)}٪)</th>`).join("")}<th class="num" rowspan="2">المجموع</th><th class="num" rowspan="2">من</th></tr>
-      <tr>${byC.map((x) => x.A.map((a) => `<th class="num" title="${esc(a.title)}">${esc(a.title.slice(0, 14))}${a.published ? "" : " *"}</th>`).join("") + '<th class="num">العلامة</th>').join("")}</tr></thead><tbody>` +
+    h += st.length ? `<div class="tw"><table class="t sticky1"><thead><tr><th rowspan="2">الطالب</th>${byC.map((x) => `<th class="num" colspan="${x.A.length + 1}">${esc(x.k.title)} (${nf(+x.k.weight, 0)}٪)</th>` + (x.k.id === lastSecond ? `<th class="num" rowspan="2" style="background:var(--accent-soft)">التقويم الثاني<br><span class="tiny">من ${nf(G2.weight, 0)}</span></th>` : "")).join("")}<th class="num" rowspan="2">المجموع</th><th class="num" rowspan="2">من</th></tr>
+      <tr>${byC.map((x) => x.A.map((a) => `<th class="num" title="${esc(a.title)}">${esc(a.title.slice(0, 14))}${a.published ? "" : " *"}${a.kind === "assignment" && !(S.assess.find((y) => y.id === a.id) || { assign: {} }).assign.released ? " †" : ""}</th>`).join("") + '<th class="num">العلامة</th>').join("")}</tr></thead><tbody>` +
       st.map((x) => `<tr${x.status !== "active" ? ' style="opacity:.5"' : ""}><td><a href="#objs/${x.enrollment_id}" style="color:inherit"><b>${esc(x.full_name)}</b></a><div class="tiny mono">${esc(x.username)}</div></td>
-        ${byC.map((c) => c.A.map((a) => `<td class="num">${x.items[a.id] == null ? "—" : nf(x.items[a.id], 1)}</td>`).join("") + `<td class="num"><b>${x.comps[c.k.id] == null ? "—" : nf(x.comps[c.k.id] * c.k.weight / 100, 2)}</b></td>`).join("")}
-        <td class="num"><b class="score">${x.total == null ? "—" : nf(x.total, 2)}</b></td><td class="num tiny">${nf(x.wsofar || 0, 0)}</td></tr>`).join("") + '</tbody></table></div><p class="tiny" style="margin-top:8px">* تقويم مخفي عن الطلبة (يظهر لك فقط).</p>'
+        ${byC.map((c) => c.A.map((a) => `<td class="num">${x.items[a.id] == null ? "—" : nf(x.items[a.id], 1)}</td>`).join("") + `<td class="num"><b>${x.comps[c.k.id] == null ? "—" : nf(x.comps[c.k.id] * c.k.weight / 100, 2)}</b></td>` + (c.k.id === lastSecond ? `<td class="num" style="background:var(--accent-soft)"><b>${F.groupMark(x, G2) == null ? "—" : nf(F.groupMark(x, G2), 2)}</b></td>` : "")).join("")}
+        <td class="num"><b class="score">${x.total == null ? "—" : nf(x.total, 2)}</b></td><td class="num tiny">${x.wsofar ? nf(x.wsofar, 0) : "100"}</td></tr>`).join("") + '</tbody></table></div><p class="tiny" style="margin-top:8px">* تقويم مخفي عن الطلبة (يظهر لك فقط). † واجب لم تُنشر علاماته بعد (تراه أنت ولا يراه الطالب). في الواجب: من لم يسلّم بعد انتهاء الموعد يُحسب له صفر، والمعفى لا يُحتسب.</p>'
       : emptyBox("users", "لا طلبة بعد", "");
     el.innerHTML = h;
     el.querySelector("#bCsv") && (el.querySelector("#bCsv").onclick = () => {
-      const head = ["الرقم الجامعي", "الاسم", ...byC.flatMap((x) => [...x.A.map((a) => a.title + " ٪"), x.k.title + " (" + x.k.weight + ")"]), "المجموع", "الأوزان المحتسبة"];
-      const rows = st.map((x) => [x.username, x.full_name, ...byC.flatMap((c) => [...c.A.map((a) => x.items[a.id] ?? ""), x.comps[c.k.id] != null ? Math.round(x.comps[c.k.id] * c.k.weight) / 100 : ""]), x.total ?? "", x.wsofar ?? 0]);
+      const head = ["الرقم الجامعي", "الاسم", ...byC.flatMap((x) => [...x.A.map((a) => a.title + " ٪"), x.k.title + " (" + x.k.weight + ")", ...(x.k.id === lastSecond ? ["التقويم الثاني (" + G2.weight + ")"] : [])]), "المجموع", "الأوزان المحتسبة"];
+      const rows = st.map((x) => [x.username, x.full_name, ...byC.flatMap((c) => [...c.A.map((a) => x.items[a.id] ?? ""), x.comps[c.k.id] != null ? Math.round(x.comps[c.k.id] * c.k.weight) / 100 : "", ...(c.k.id === lastSecond ? [F.groupMark(x, G2) == null ? "" : Math.round(F.groupMark(x, G2) * 100) / 100] : [])]), x.total ?? "", x.wsofar ?? 0]);
       download("علامات " + sec().name + ".csv", csv([head, ...rows]));
     });
   } };
@@ -439,6 +450,13 @@
       <div class="row" style="gap:6px"><button class="btn sm outline" data-se="${s.id}">تعديل</button>${s.archived ? `<button class="btn sm ghost" data-sun="${s.id}">استرجاع</button>` : `<button class="btn sm ghost" data-sd="${s.id}">حذف</button>`}</div></div>`).join("") + '</div><p class="tiny" style="margin-top:8px">الشعبة التي فيها طلبة أو تقويمات لا تُحذف بل تُؤرشف، فتبقى سجلاتها.</p></div>';
     h += `<div class="card pad"><h3 style="font-size:16px;margin-bottom:10px">${ic("cal", "sm")} الفصول الدراسية</h3><div class="list">` + B.terms.map((t) => `<div class="li"><div><b>${esc(t.name)}</b>${t.is_current ? ' <span class="pill open">الحالي</span>' : ""}<div class="tiny">${t.starts ? esc(t.starts) + " — " + esc(t.ends || "") : ""}</div></div><button class="btn sm outline" data-te="${t.id}">تعديل</button></div>`).join("") + "</div></div>";
     h += `<div class="card pad"><h3 style="font-size:16px;margin-bottom:10px">${ic("award", "sm")} توزيع العلامات (الخطة الدراسية)</h3><div class="list">` + c.components.map((k) => `<div class="li"><span>${esc(k.title)}</span><b class="num">${nf(+k.weight, 0)}٪</b></div>`).join("") + `<div class="li"><b>المجموع</b><b class="num">${nf(c.components.reduce((t, k) => t + +k.weight, 0), 0)}٪</b></div></div></div>`;
+    h += `<div class="card pad"><h3 style="font-size:16px;margin-bottom:10px">${ic("target", "sm")} احتساب المشاركة والمهام والكويزات</h3>
+      <p class="tiny" style="margin-bottom:10px">لكل هدف قيس في هذين المكوّنين يُحتسب قياس واحد للطالب، ثم علامة المكوّن = متوسط الأهداف المقيسة × وزنه (على نهج منصة السهم العلمي). الهدف الذي لم يُقس لا يدخل في الحساب.</p>
+      <div class="seg" id="sRule"><button data-r="highest" aria-pressed="${(c.obj_rule || "highest") === "highest"}">الأعلى: أفضل قياس للهدف</button><button data-r="latest" aria-pressed="${c.obj_rule === "latest"}">الأحدث: آخر قياس للهدف</button></div></div>`;
+    h += `<div class="card pad"><h3 style="font-size:16px;margin-bottom:10px">${ic("inbox", "sm")} ملفات الواجبات والأرشفة</h3><div id="stor" class="stbox" style="margin-bottom:10px"><div><span>المساحة</span><b>…</b></div></div>
+      <p class="tiny" style="margin-bottom:10px">ملفات الطلبة محفوظة داخل قاعدة البيانات (الخطة المجانية في Supabase: 500 ميغابايت لقاعدة البيانات كلها). في نهاية الفصل: نزّل ملفات الشعبة كاملة، ثم فرّغها لتوفير المساحة؛ تبقى العلامات والروبرك والتعليقات وسجل التسليم كما هي.</p>
+      <div class="row wrap" style="gap:8px"><button class="btn outline" id="arZip">${ic("download", "sm")}تنزيل ملفات الشعبة الحالية (ZIP)</button><button class="btn ghost" id="arPurge">تفريغ ملفات الشعبة الحالية</button></div></div>`;
+    h += `<div class="card pad"><h3 style="font-size:16px;margin-bottom:10px">${ic("target", "sm")} قوالب الروبرك وبنك التعليقات</h3><div id="tplBox" class="tiny">جارٍ التحميل…</div></div>`;
     h += `<div class="card pad"><h3 style="font-size:16px;margin-bottom:10px">${ic("user", "sm")} حسابي</h3><label class="field"><span>الاسم</span><input class="input" id="pN" value="${esc(B.me.full_name)}"></label>
       <label class="field"><span>البريد الإلكتروني</span><input class="input" id="pE" dir="ltr" value="${esc(B.me.email || "")}"></label><p class="tiny">اسم الدخول: <b class="mono">${esc(B.me.username)}</b></p>
       <div class="row" style="gap:8px;margin-top:10px"><button class="btn primary" id="pS">حفظ</button><button class="btn outline" id="pW">${ic("lock", "sm")}تغيير كلمة المرور</button></div></div>`;
@@ -451,6 +469,8 @@
       <div class="fields two"><label class="field"><span>يبدأ</span><input class="input" type="date" id="tS" value="${esc(t && t.starts || "")}"></label><label class="field"><span>ينتهي</span><input class="input" type="date" id="tE" value="${esc(t && t.ends || "")}"></label></div>
       <label class="check"><input type="checkbox" id="tC" ${t && t.is_current ? "checked" : ""}> الفصل الحالي</label><button class="btn primary block" id="tGo" style="margin-top:12px">حفظ</button>`);
       b.querySelector("#tGo").onclick = async (e) => { spin(e.target, true); try { await rpc("t_save_term", { p: { id: t ? t.id : null, name: b.querySelector("#tN").value, starts: b.querySelector("#tS").value || null, ends: b.querySelector("#tE").value || null, is_current: b.querySelector("#tC").checked } }); closeSheet(); toast("حُفظ"); await reload(); } catch (x) { toast(x.message, true); spin(e.target, false); } }; };
+    el.querySelectorAll("#sRule button").forEach((b) => (b.onclick = async () => { try { await rpc("t_set_obj_rule", { p_course: c.id, p_rule: b.dataset.r }); toast("حُفظت طريقة الاحتساب"); await reload(); } catch (x) { toast(x.message, true); } }));
+    settingsAssign(el, c);
     el.querySelector("#sNew").onclick = () => secForm(null); el.querySelector("#tNew").onclick = () => termForm(null);
     el.querySelectorAll("[data-se]").forEach((b) => (b.onclick = () => secForm(B.sections.find((s) => s.id === b.dataset.se))));
     el.querySelectorAll("[data-te]").forEach((b) => (b.onclick = () => termForm(B.terms.find((t) => t.id === b.dataset.te))));
@@ -464,16 +484,40 @@
   } };
 
 
+  function settingsAssign(el, c) {
+    const MB = (b) => nf(b / 1048576, 1) + " م.ب";
+    rpc("t_storage").then((r) => { const box = el.querySelector("#stor"); if (box) box.innerHTML = `<div><span>ملفات الواجبات</span><b>${MB(r.bytes)}</b></div><div><span>عدد الملفات</span><b>${r.files}</b></div><div><span>قاعدة البيانات كلها</span><b>${MB(r.db_bytes)} من 500</b></div>`; }).catch(() => { });
+    const drawTpl = async () => {
+      const box = el.querySelector("#tplBox"); if (!box) return;
+      try {
+        const [T0, C0] = await Promise.all([rpc("t_templates", { p_course: c.id }), rpc("t_comments", { p_course: c.id })]); G.cm = C0;
+        box.innerHTML = `<b>قوالب الروبرك (${T0.length})</b>${T0.length ? '<div class="list">' + T0.map((t) => `<div class="li"><span>${esc(t.title)} <span class="tiny">· ${t.criteria.length} معايير · من ${nf(t.criteria.reduce((a, p) => a + +p.max_score, 0), 2)}</span></span><button class="btn sm ghost" data-td="${t.id}">حذف</button></div>`).join("") + "</div>" : '<p class="tiny">احفظ روبرك أي واجب قالبًا من شاشة تعديله ليُعاد استعماله.</p>'}
+          <b style="display:block;margin-top:12px">بنك التعليقات (${C0.length})</b>${C0.length ? '<div class="cbank">' + C0.map((x) => `<span class="cb"><span title="${esc(x.text)}">${esc(x.text)}</span><i data-cd="${x.id}">✕</i></span>`).join("") + "</div>" : '<p class="tiny">تُضاف التعليقات من شاشة التصحيح.</p>'}`;
+        box.querySelectorAll("[data-td]").forEach((b) => (b.onclick = async () => { try { await rpc("t_template_del", { p_id: b.dataset.td }); drawTpl(); } catch (e) { toast(e.message, true); } }));
+        box.querySelectorAll("[data-cd]").forEach((b) => (b.onclick = async () => { try { await rpc("t_comment_del", { p_id: b.dataset.cd }); drawTpl(); } catch (e) { toast(e.message, true); } }));
+      } catch (e) { box.textContent = e.message; }
+    };
+    drawTpl();
+    el.querySelector("#arZip").onclick = (e) => { const L0 = S.assess.filter((a) => a.kind === "assignment"); if (!L0.length) return toast("لا واجبات في هذه الشعبة", true); zipAssign(L0, e.currentTarget, "واجبات " + sec().name); };
+    el.querySelector("#arPurge").onclick = async () => {
+      if (!sec()) return;
+      if (!(await confirmSheet("تفريغ ملفات الشعبة", `ستُحذف من المنصة ملفات تسليم الطلبة وملفات الملاحظات في <b>${esc(sec().name)}</b> نهائيًّا (تبقى ملفات التعليمات، والعلامات، والروبرك، والتعليقات، وسجل التسليم).<br><b>نزّل ملف ZIP أولًا واحفظه.</b>`, "فرّغ الملفات", true))) return;
+      try { const r = await rpc("t_purge_files", { p_section: S.sec }); toast("فُرّغ " + r.files + " ملفًا (" + MB(r.bytes) + ")"); route(); } catch (e) { toast(e.message, true); }
+    };
+  }
+
   // ===================== السجلات والطباعة (على نمط منصة السهم العلمي) =====================
   // سلّم تقديرات جامعة فلوريدا العالمية (كما اعتمده المحاضر)
   const GRADES = [[95, "A+", 4.00], [90, "A", 3.75], [85, "B+", 3.50], [80, "B", 3.00], [77, "C+", 2.50], [73, "C", 2.00], [70, "C-", 1.75], [67, "D+", 1.50], [60, "D", 1.00], [0, "F", 0.00]];
   const gradeOf = (p) => (p == null ? null : GRADES.find((g) => p >= g[0]));
   const RKINDS = [
-    ["sum", "السجل التجميعي", "كل مكوّنات توزيع العلامات + المجموع والتقدير والنقاط"],
-    ["marks", "كشف العلامات المختصر", "منتصف الفصل والنهائي والأعمال الفصلية والمجموع"],
+    ["sum", "السجل التجميعي", "الأول + مكوّنات الثاني الأدائي ومجموعه + النهائي + المجموع والتقدير"],
+    ["marks", "كشف العلامات المختصر", "الأول والثاني والنهائي والمجموع والتقدير فقط"],
     ["det", "السجل التفصيلي", "كل هدف من أهداف الفصول عمود بنص عمودي"],
     ["checklist", "قائمة الشطب", "إتقان أهداف فصول محددة (✓ / ✗)"],
-    ["evidence", "سجل القياس بالأدوات", "كل تقويم بأداته وتاريخه وأهدافه (دليل للجامعة)"]
+    ["evidence", "سجل القياس بالأدوات", "كل تقويم بأداته وتاريخه وأهدافه (دليل للجامعة)"],
+    ["asub", "سجل تسليم الواجبات", "لكل واجب: في الموعد / متأخر / لم يسلّم / معفى، والعلامة"],
+    ["arub", "نتائج الروبرك حسب الأهداف", "مستوى كل طالب في كل معيار من معايير الواجبات"]
   ];
   const RF = { kind: "sum", secs: "cur", chs: [], show: "level", sort: "id", only: "all", orient: "auto" };
   const RC = {};   // ذاكرة بيانات الشعب الأخرى
@@ -576,26 +620,27 @@
     let M;
     if (kind === "sum" || kind === "marks") {
       M = rheader(secObj, RKINDS.find((k) => k[0] === kind)[1], secObj.name);
-      let groups;
-      if (kind === "sum") groups = C.map((k, i) => ({ h: k.title, s: "من " + nf(+k.weight, 0), ids: [k.id], dark: DK.comp[i % 6], light: LT.comp[i % 6] }));
-      else {
-        const mid = C.find((k) => k.key === "midterm"), fin = C.find((k) => k.key === "final"), rest = C.filter((k) => k !== mid && k !== fin);
-        groups = [mid && { h: mid.title, s: "من " + nf(+mid.weight, 0), ids: [mid.id], dark: DK.comp[0], light: LT.comp[0] },
-          fin && { h: fin.title, s: "من " + nf(+fin.weight, 0), ids: [fin.id], dark: DK.comp[3], light: LT.comp[3] },
-          { h: "الأعمال الفصلية", s: "من " + nf(rest.reduce((t, k) => t + +k.weight, 0), 0), ids: rest.map((k) => k.id), dark: DK.comp[1], light: LT.comp[1] }].filter(Boolean);
-      }
-      M.cols = base.concat(groups.map((g) => ({ h: g.h, s: g.s, dark: g.dark, light: g.light, w: 12 })),
-        [{ h: "المجموع", s: "من " + nf(ws, 0), dark: DK.total, light: LT.total, b: true, w: 10 }, { h: "النسبة", dark: DK.total, light: LT.total, w: 9 },
+      const EG = F.evalGroups(C), GC = { first: [DK.comp[0], LT.comp[0]], second: [DK.comp[1], LT.comp[1]], final: [DK.comp[3], LT.comp[3]] };
+      let groups = [];
+      if (kind === "sum") EG.forEach((g) => {
+        if (g.key === "second") {
+          g.comps.forEach((k) => groups.push({ h: k.title, s: "من " + nf(+k.weight, 0), ids: [k.id], dark: GC.second[0], light: LT.comp[4], g: "second", gt: g.title + " — من " + nf(g.weight, 0) }));
+          groups.push({ h: "مجموع التقويم الثاني", s: "من " + nf(g.weight, 0), ids: g.comps.map((k) => k.id), dark: GC.second[0], light: GC.second[1], g: "second", gt: g.title + " — من " + nf(g.weight, 0), b: true });
+        } else groups.push({ h: g.title, s: "من " + nf(g.weight, 0), ids: g.comps.map((k) => k.id), dark: GC[g.key][0], light: GC[g.key][1], b: true });
+      });
+      else groups = EG.map((g) => ({ h: g.title, s: "من " + nf(g.weight, 0), ids: g.comps.map((k) => k.id), dark: GC[g.key][0], light: GC[g.key][1], b: true }));
+      M.cols = base.concat(groups.map((g) => ({ h: g.h, s: g.s, dark: g.dark, light: g.light, g: g.g, gt: g.gt, gdark: g.dark, b: g.b, w: 12 })),
+        [{ h: "المجموع", s: "من " + (ws ? nf(ws, 0) : "100"), dark: DK.total, light: LT.total, b: true, w: 10 }, { h: "النسبة", dark: DK.total, light: LT.total, w: 9 },
          { h: "التقدير", dark: DK.grade, light: LT.grade, b: true, w: 8 }, { h: "النقاط", dark: DK.grade, light: LT.grade, w: 8 }]);
       M.rows = L.map((s, i) => {
         const p = pctOf(s), g = gradeOf(p);
         return baseRow(s, i).concat(groups.map((gr) => {
           const vals = gr.ids.map((id) => { const k = C.find((x) => x.id === id); return s.comps[id] == null ? null : s.comps[id] * k.weight / 100; }).filter((v) => v != null);
-          return cell(vals.length ? nf(vals.reduce((a, b) => a + b, 0), 2) : null);
+          return cell(vals.length ? nf(vals.reduce((a, b) => a + b, 0), 2) : null, { b: !!gr.b });
         }), [cell(s.total == null ? null : nf(s.total, 2), { b: true }), cell(p == null ? null : nf(p, 1) + "%"),
           cell(g ? g[1] : null, { b: true, color: g && g[1] === "F" ? "B91C1C" : null, fill: g && g[1] === "F" ? "FEE2E2" : null }), cell(g ? g[2].toFixed(2) : null)]);
       });
-      M.note = `علامة كل مكوّن = متوسط نسب تقويماته المحتسبة × وزنه في الخطة الدراسية. «المجموع من ${nf(ws, 0)}» = مجموع أوزان المكوّنات التي فيها علامات محتسبة حتى الآن${ws < 100 ? "؛ لذلك النسبة والتقدير مؤقتان حتى تكتمل الأوزان إلى 100" : ""}. سلّم التقدير: A+ 95–100 (4.00)، A 90–94 (3.75)، B+ 85–89 (3.50)، B 80–84 (3.00)، C+ 77–79 (2.50)، C 73–76 (2.00)، C- 70–72 (1.75)، D+ 67–69 (1.50)، D 60–66 (1.00)، F أقل من 60. يُحسب التقدير من النسبة دون تقريب.`;
+      M.note = `${ws ? "" : "لم تُرصد علامات بعد. "}المنتصف والنهائي والمشروع: علامة التقويم نفسه × وزنه. المشاركة والمهام والكويزات: لكل هدف قيس فيها يُحتسب ${course().obj_rule === "latest" ? "أحدث" : "أعلى"} قياس للطالب، ثم متوسط الأهداف المقيسة × وزن المكوّن. «المجموع من ${ws ? nf(ws, 0) : 100}» = مجموع أوزان المكوّنات التي فيها علامات محتسبة حتى الآن${ws < 100 ? "؛ لذلك النسبة والتقدير مؤقتان حتى تكتمل الأوزان إلى 100" : ""}. سلّم التقدير: A+ 95–100 (4.00)، A 90–94 (3.75)، B+ 85–89 (3.50)، B 80–84 (3.00)، C+ 77–79 (2.50)، C 73–76 (2.00)، C- 70–72 (1.75)، D+ 67–69 (1.50)، D 60–66 (1.00)، F أقل من 60. يُحسب التقدير من النسبة دون تقريب.`;
       M.sign = true;
     } else if (kind === "det" || kind === "checklist") {
       const CH = scopeChs(), check = kind === "checklist";
@@ -620,6 +665,47 @@
         (RF.show === "mark" ? "الخلية = نسبة الطالب في الهدف من علامات الأسئلة والأجزاء المربوطة به؛ — = لم يُقَس بعد." :
           "الخلية = مستوى الإتقان: 1 مبتدئ (أقل من 50%)، 2 نامٍ (50–69%)، 3 متمكّن (70–84%)، 4 متميّز (85% فأكثر)؛ — = لم يُقَس بعد.");
       M.sign = true;
+    } else if (kind === "asub") {
+      const R = D.rep || [], now = new Date();
+      M = rheader(secObj, "سجل تسليم الواجبات", secObj.name);
+      M.cols = base.slice();
+      R.forEach((a, ai) => { const gt = a.title + " — " + (a.close_at ? fmtDT(a.close_at, false) : "");
+        M.cols.push({ h: "التسليم", g: "a" + ai, gt, dark: DK.comp[ai % 6], gdark: DK.comp[ai % 6], w: 13 }, { h: "العلامة", s: "من " + nf(+a.max, 2) + (a.released ? "" : " (غير منشورة)"), g: "a" + ai, gt, dark: DK.comp[ai % 6], light: LT.comp[ai % 6], b: true, w: 9 }); });
+      M.cols.push({ h: "سلّم", s: "من المطلوب", dark: DK.total, light: LT.total, b: true, w: 9 }, { h: "متأخر", dark: DK.total, light: LT.total, w: 8 }, { h: "لم يسلّم", dark: DK.grade, light: LT.grade, w: 8 });
+      M.rows = L.map((s, i) => {
+        let req = 0, done = 0, lt = 0, miss = 0;
+        const cs = R.flatMap((a) => {
+          const sb = a.subs.find((z) => z.enrollment_id === s.enrollment_id) || {}, A = a.assign || {};
+          let due = sb.extension_until || a.close_at; if (["penalty", "free"].includes(A.late) && A.cutoff_at && (!due || A.cutoff_at > due)) due = A.cutoff_at;
+          if (sb.reopen_until && (!due || sb.reopen_until > due)) due = sb.reopen_until;
+          const passed = due && new Date(due) < now;
+          if (sb.excused) return [cell("معفى", { color: "475569", fill: "F1F5F9" }), cell(null)];
+          if (sb.version > 0) { req++; done++; if (sb.late_minutes > 0) lt++;
+            return [sb.late_minutes > 0 ? cell("متأخر " + lateTxt(sb.late_minutes), { color: "854D0E", fill: "FDEFC8", wrap: true }) : cell("✓ في الموعد", { color: "166534", fill: "D9F2E1" }), cell(sb.graded ? nf(+sb.score, 2) : "لم يُصحَّح", { b: true, dim: !sb.graded })]; }
+          if (passed) { req++; miss++; return [cell("✗ لم يسلّم", { color: "9A3412", fill: "FFE4D6", b: true }), cell(sb.graded ? nf(+sb.score, 2) : "0", { b: true })]; }
+          return [cell("لم يحن الموعد", { dim: true }), cell(null)];
+        });
+        return baseRow(s, i).concat(cs, [cell(req ? done + "/" + req : null, { b: true }), cell(lt), cell(miss, { color: miss ? "9A3412" : null })]);
+      });
+      M.note = "✓ في الموعد = سلّم قبل موعد التسليم (أو قبل تمديده الخاص). متأخر = سلّم بعد الموعد في واجب يسمح بالتأخير، ومدة التأخير بجانبه. ✗ لم يسلّم = انتهت مهلة التسليم دون تسليم، فيُحسب له صفر. معفى = عذر مقبول لا يُحتسب. «لم يُصحَّح» = سلّم وينتظر التصحيح.";
+      M.sign = true;
+    } else if (kind === "arub") {
+      const R = (D.rep || []).filter((a) => a.parts.length), o = course().objectives;
+      M = rheader(secObj, "نتائج الروبرك حسب الأهداف", secObj.name + " — " + (RF.show === "mark" ? "النسب" : "المستويات"));
+      M.cols = base.slice(); M.legend = [];
+      R.forEach((a, ai) => a.parts.forEach((p) => { M.cols.push({ h: p.objective_code, code: true, g: "a" + ai, gt: a.title, dark: DK.ch[ai % 10], gdark: DK.ch[ai % 10], w: 6 });
+        M.legend.push([p.objective_code, a.title + " — " + p.label + ": " + ((o.find((y) => y.code === p.objective_code) || {}).text || "")]); }));
+      M.cols.push({ h: "المتوسط", s: "من نقاط الروبرك", dark: DK.total, light: LT.total, b: true, w: 9 });
+      M.rows = L.map((s, i) => {
+        let t = 0, m = 0;
+        const cs = R.flatMap((a) => { const sb = a.subs.find((z) => z.enrollment_id === s.enrollment_id);
+          return a.parts.map((p) => { const r = sb && sb.graded && sb.rubric ? sb.rubric[p.id] : null; if (!r || r.pts == null) return cell(null);
+            const pct = +r.pts / +p.max * 100, k = lvOf(pct); t += +r.pts; m += +p.max;
+            return cell(RF.show === "mark" ? nf(pct, 0) : String(k), { b: true, fill: LVF[k], color: LVC[k] }); }); });
+        return baseRow(s, i).concat(cs, [cell(m ? nf(t / m * 100, 1) + "%" : null, { b: true })]);
+      });
+      M.note = (RF.show === "mark" ? "الخلية = نسبة نقاط الطالب في المعيار من علامته القصوى. " : "الخلية = مستوى الطالب في المعيار: 1 مبتدئ (أقل من 50%)، 2 نامٍ (50–69%)، 3 متمكّن (70–84%)، 4 متميّز (85% فأكثر). ") + "رأس العمود رمز الهدف الذي يقيسه المعيار، والمفتاح أسفل الجدول يبيّن الواجب والمعيار والهدف. النقاط قبل خصم التأخير، وتظهر المعايير المصحّحة فقط؛ — = لم يُصحَّح أو لم يسلّم.";
+      M.sign = true;
     } else {
       const codes = new Set(scopeChs().flatMap((c) => c.objs.map((o) => o.code)));
       const A = D.assess.filter((a) => { const oc = a.kind === "quiz" ? (a.quiz.objectives || []) : a.parts.map((p) => p.objective_code); return !RF.chs.length || oc.some((x) => codes.has(x)); });
@@ -631,9 +717,9 @@
       M.rows = A.map((a, i) => {
         const oc = a.kind === "quiz" ? (a.quiz.objectives || []) : [...new Set(a.parts.map((p) => p.objective_code))];
         const v = act.map((s) => s.items[a.id]).filter((x) => x != null);
-        const dt = a.kind === "quiz" ? [a.open_at && "من " + fmtDT(a.open_at, false), a.close_at && "إلى " + fmtDT(a.close_at, false)].filter(Boolean).join(" ") : "";
+        const dt = a.kind !== "manual" ? [a.open_at && "من " + fmtDT(a.open_at, false), a.close_at && "إلى " + fmtDT(a.close_at, false)].filter(Boolean).join(" ") : "";
         return [cell(i + 1), cell(a.title, { wrap: true }), cell(comp(a.component_id).title || "", { wrap: true }),
-          cell(a.kind === "quiz" ? `اختبار إلكتروني (${a.quiz.n} أسئلة من بنك الأسئلة)` : `رصد المحاضر (${a.parts.length} أجزاء)`, { wrap: true }),
+          cell(a.kind === "quiz" ? `اختبار إلكتروني (${a.quiz.n} أسئلة من بنك الأسئلة)` : a.kind === "assignment" ? `واجب يسلّمه الطالب على المنصة، يُصحَّح بروبرك (${a.parts.length} معايير)` : `رصد المحاضر (${a.parts.length} أجزاء)`, { wrap: true }),
           cell(dt || null, { wrap: true }), cell(oc.join("، "), { wrap: true, ltr: true }), cell(nf(+a.max_score, 2)), cell(v.length), cell(v.length ? nf(v.reduce((x, y) => x + y, 0) / v.length, 1) + "%" : null, { b: true })];
       });
       M.note = "متوسط الشعبة = متوسط نسب الطلبة الذين قيسوا بالتقويم (للاختبار الإلكتروني: أفضل محاولة لكل طالب). تفصيل علامة كل طالب في كل تقويم في الصفحة التالية.";
@@ -646,14 +732,18 @@
       M2.sign = true;
       M.extra = M2;
     }
-    const fix = (X) => { const vt = X.cols.filter((x) => x.vt || x.code).length; X.orient = RF.orient !== "auto" ? RF.orient : (X.cols.length > 9 || vt > 4 || kind === "evidence") ? "landscape" : "portrait"; return X; };
+    const fix = (X) => { const vt = X.cols.filter((x) => x.vt || x.code).length; X.orient = RF.orient !== "auto" ? RF.orient : (X.cols.length > 9 || vt > 4 || kind === "evidence" || kind === "asub") ? "landscape" : "portrait"; return X; };
     fix(M); if (M.extra) fix(M.extra);
     return M;
   }
   async function rmodels() {
     const ids = RF.secs === "all" ? S.boot.sections.filter((s) => !s.archived).map((s) => s.id) : [S.sec];
     const out = [];
-    for (const id of ids) { const so = S.boot.sections.find((s) => s.id === id); const M = rmodel(RF.kind, so, await secData(id)); out.push(M); if (M.extra) out.push(M.extra); }
+    for (const id of ids) {
+      const so = S.boot.sections.find((s) => s.id === id), D0 = await secData(id);
+      const D = ["asub", "arub"].includes(RF.kind) ? Object.assign({}, D0, { rep: await rpc("t_assign_report", { p_section: id }) }) : D0;
+      const M = rmodel(RF.kind, so, D); out.push(M); if (M.extra) out.push(M.extra);
+    }
     return out;
   }
   function rhtml(M) {
@@ -666,7 +756,7 @@
       else { h += `<th ${hasG ? 'rowspan="2"' : ""} class="${c.vt ? "vt" : ""}" style="background:${hex(c.dark)}">${c.vt ? `<div>${esc(c.h)}</div>` : esc(c.h)}${c.s ? `<small>${esc(c.s)}</small>` : ""}</th>`; i++; }
     }
     h += "</tr>";
-    if (hasG) h += "<tr>" + M.cols.filter((c) => c.g).map((c) => `<th class="${c.vt ? "vt" : ""}${c.code ? " cd" : ""}" style="background:${hex(c.dark)}">${c.vt ? `<div>${esc(c.h)}</div>` : esc(c.h)}</th>`).join("") + "</tr>";
+    if (hasG) h += "<tr>" + M.cols.filter((c) => c.g).map((c) => `<th class="${c.vt ? "vt" : ""}${c.code ? " cd" : ""}" style="background:${hex(c.dark)}">${c.vt ? `<div>${esc(c.h)}</div>` : esc(c.h)}${c.s ? `<small>${esc(c.s)}</small>` : ""}</th>`).join("") + "</tr>";
     h += "</thead><tbody>";
     M.rows.forEach((r, ri) => { h += "<tr>" + r.map((x, i) => { const c = M.cols[i] || {}, cls = [c.nm ? "nm" : "", x.wrap || c.wrap ? "wrap" : "", x.b || c.b ? "b" : "", x.dim ? "dim" : "", x.ltr ? "ltr" : ""].join(" ");
       const bg = x.fill || c.light || (ri % 2 ? "F8FAFC" : "FFFFFF");
@@ -694,7 +784,7 @@
       for (let i = 0; i < n;) {
         const c = M.cols[i];
         if (hasG && c.g) { let j = i; while (j < n && M.cols[j].g === c.g) j++;
-          for (let k = i; k < j; k++) { put(r1, k, k === i ? c.gt : "", hs(c.gdark || c.dark)); put(r2, k, M.cols[k].h, hs(M.cols[k].dark, M.cols[k].vt)); }
+          for (let k = i; k < j; k++) { put(r1, k, k === i ? c.gt : "", hs(c.gdark || c.dark)); put(r2, k, M.cols[k].h + (M.cols[k].s ? " (" + M.cols[k].s + ")" : ""), hs(M.cols[k].dark, M.cols[k].vt)); }
           merges.push({ s: { r: r1, c: i }, e: { r: r1, c: j - 1 } }); i = j; }
         else { put(r1, i, c.h + (c.s ? " (" + c.s + ")" : ""), hs(c.dark, c.vt)); if (hasG) { put(r2, i, "", hs(c.dark)); merges.push({ s: { r: r1, c: i }, e: { r: r2, c: i } }); } i++; }
       }
@@ -728,7 +818,7 @@
           <label class="field"><span>الترتيب</span><select class="input" id="fSort">${opt(RF.sort, [["id", "الرقم الجامعي"], ["alpha", "أبجديًّا"], ["total", "بالنسبة (الأعلى أولًا)"]])}</select></label></div>
         <div class="${chapKinds ? "" : "hide"}"><span class="lbl">النطاق — علّم الفصول (بلا تعليم = كل الفصول)</span>
           <div class="chips">${chs().map((c) => `<label class="chip lchip"><input type="checkbox" class="fC" data-c="${c.ch}" ${RF.chs.includes(c.ch) ? "checked" : ""}>الفصل ${c.ch} <span class="tiny">${esc(c.title)}</span></label>`).join("")}</div></div>
-        <div class="row wrap"><div class="seg ${RF.kind === "det" ? "" : "hide"}" id="fShow"><button data-s="level" aria-pressed="${RF.show === "level"}">الخلايا: المستوى 1–4</button><button data-s="mark" aria-pressed="${RF.show === "mark"}">الخلايا: النسبة</button></div>
+        <div class="row wrap"><div class="seg ${RF.kind === "det" || RF.kind === "arub" ? "" : "hide"}" id="fShow"><button data-s="level" aria-pressed="${RF.show === "level"}">الخلايا: المستوى 1–4</button><button data-s="mark" aria-pressed="${RF.show === "mark"}">الخلايا: النسبة</button></div>
           <div class="seg" id="fOrient"><button data-o="auto" aria-pressed="${RF.orient === "auto"}">A4 تلقائي</button><button data-o="portrait" aria-pressed="${RF.orient === "portrait"}">A4 عمودي</button><button data-o="landscape" aria-pressed="${RF.orient === "landscape"}">A4 أفقي</button></div>
           <span class="grow"></span><button class="btn primary" id="fPrint">${ic("printer", "sm")}طباعة / PDF</button><button class="btn outline" id="fXlsx">Excel منسّق</button></div></div>
       <div class="rec-scroll" style="margin-top:14px"><div class="paper" id="recPaper"><div class="loading" style="padding:20px">جارٍ التحضير…</div></div></div>`;
@@ -746,6 +836,392 @@
     el.querySelector("#fXlsx").onclick = async (e) => { spin(e.target, true); try { const ms = await rmodels(); await rxlsx(ms, ms[0].title + " - " + (RF.secs === "all" ? "كل الشعب" : sec().name)); } catch (x) { toast(x.message, true); } spin(e.target, false); };
     preview();
   } };
+
+
+  // ===================== الواجبات وأوراق العمل (الإصدار 1.5) =====================
+  const RLV = ["متميّز", "متمكّن", "نامٍ", "مبتدئ"], RLF = [1, 0.75, 0.5, 0.25];
+  const round2 = (v) => Math.round(v * 100) / 100;
+  const lateTxt = (m) => { m = +m || 0; if (!m) return ""; const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mi = m % 60; return [d && d + " يوم", h && h + " ساعة", !d && mi && mi + " دقيقة"].filter(Boolean).join(" و"); };
+  const policyTxt = (A) => A.late === "penalty" ? `يُقبل المتأخر بخصم ${nf(+A.penalty_pct || 10, 0)}٪ عن كل يوم${A.cutoff_at ? " حتى " + fmtDT(A.cutoff_at, false) : ""}` : A.late === "free" ? `يُقبل المتأخر بلا خصم${A.cutoff_at ? " حتى " + fmtDT(A.cutoff_at, false) : ""} ويُعلَّم متأخرًا` : "لا تسليم بعد الموعد";
+  const words = (t) => (String(t || "").trim().match(/\S+/g) || []).length;
+
+  function asgForm(a) {
+    const g = (a && a.assign) || {}, ft = g.file_types || FF.DEF;
+    return `<div id="xAsg" class="hide">
+      <div class="tipbox tiny" style="margin-bottom:10px">يسلّم الطالب على المنصة (كتابة، أو ملفات، أو إجابات ورقة عمل)، وتصحّح أنت بروبرك كل معيار فيه مربوط بهدف؛ فتدخل علامته في المكوّن وفي إتقان الأهداف تلقائيًّا. لا يرى الطالب علامته حتى تضغط «نشر العلامات».${a && a.graded ? "<br><b>تنبيه:</b> صُحّح هذا الواجب لـ " + a.graded + " طالبًا؛ حذف معيار يحذف علاماته، وإضافة معيار تتطلب إعادة تصحيحهم." : ""}</div>
+      <label class="field"><span>التعليمات للطالب</span><textarea class="input" id="gI" rows="4" placeholder="المطلوب، والمصادر المسموحة، وشكل التسليم…">${esc(g.instructions || "")}</textarea></label>
+      <div class="field"><span>ملفات مرفقة بالتعليمات (ورقة العمل، نموذج، بيانات…)</span><div class="flist" id="gBrief"></div>
+        <button class="btn sm outline" type="button" id="gBriefAdd" style="margin-top:6px;justify-self:start">${ic("clip", "sm")}إرفاق ملف</button><input type="file" id="gBriefIn" multiple hidden></div>
+      <b style="font-size:14px">طريقة التسليم <span class="tiny">(واحدة أو أكثر)</span></b>
+      <div class="row wrap" style="gap:16px;margin:8px 0 10px"><label class="check"><input type="checkbox" id="gTx" ${g.sub_text !== false ? "checked" : ""}> صندوق إجابة يكتب فيه الطالب</label>
+        <label class="check"><input type="checkbox" id="gFl" ${g.sub_files ? "checked" : ""}> رفع ملفات</label><label class="check"><input type="checkbox" id="gWs" ${(g.worksheet || []).length ? "checked" : ""}> أسئلة ورقة عمل يجيب عنها</label></div>
+      <div id="gTxO" class="fields two"><label class="field"><span>أقل عدد كلمات (0 بلا حد)</span><input class="input" type="number" min="0" id="gWmin" value="${g.words_min || 0}"></label><label class="field"><span>أكثر عدد كلمات (0 بلا حد)</span><input class="input" type="number" min="0" id="gWmax" value="${g.words_max || 0}"></label></div>
+      <div id="gFlO"><span class="tiny">أنواع الملفات المسموحة</span><div class="chips" style="margin:6px 0">${Object.entries(FF.TYPES).map(([k, v]) => `<label class="chip lchip"><input type="checkbox" class="gFt" value="${k}" ${ft.includes(k) ? "checked" : ""}>${esc(v[1])}</label>`).join("")}</div>
+        <label class="field" style="max-width:220px"><span>أقصى عدد للملفات</span><input class="input" type="number" min="1" max="10" id="gMx" value="${g.max_files || 3}"></label><p class="tiny">حد الملف الواحد 4 ميغابايت، وتُصغَّر صور الهاتف تلقائيًّا قبل رفعها.</p></div>
+      <div id="gWsO"><div class="tiny" style="margin-bottom:6px">أسئلة ورقة العمل — لكل سؤال خانة إجابة خاصة عند الطالب</div><div id="gWsL"></div><button class="btn sm outline" type="button" id="gWsAdd">＋ سؤال</button></div>
+      <div class="fields two" style="margin-top:12px"><label class="field"><span>يفتح في (فارغ = فور النشر)</span><input class="input" type="datetime-local" id="gO" value="${a && a.open_at ? toLocalInput(a.open_at) : ""}"></label>
+        <label class="field"><span>موعد التسليم *</span><input class="input" type="datetime-local" id="gD" value="${a && a.close_at ? toLocalInput(a.close_at) : ""}"></label></div>
+      <b style="font-size:14px">التسليم بعد الموعد</b>
+      <div class="seg" id="gLate" style="margin:8px 0;display:flex">${[["none", "لا تسليم بعد الموعد"], ["penalty", "مسموح بخصم"], ["free", "مسموح بلا خصم"]].map(([k, t]) => `<button type="button" data-l="${k}" aria-pressed="${(g.late || "none") === k}">${t}</button>`).join("")}</div>
+      <div id="gLateO" class="fields two"><label class="field" id="gPpW"><span>الخصم عن كل يوم تأخير (٪)</span><input class="input" type="number" min="1" max="100" id="gPp" value="${g.penalty_pct || 10}"></label>
+        <label class="field"><span>الإغلاق النهائي (لا يُقبل بعده شيء)</span><input class="input" type="datetime-local" id="gCu" value="${g.cutoff_at ? toLocalInput(g.cutoff_at) : ""}"></label></div>
+      <label class="check" style="margin:6px 0 12px"><input type="checkbox" id="gRs" ${g.resubmit !== false ? "checked" : ""}> يسمح للطالب بإعادة التسليم حتى الموعد (تُحفظ كل نسخة، ويُصحَّح آخرها)</label>
+      <div class="row sp wrap" style="margin-top:6px"><b style="font-size:15px">${ic("target", "sm")} الروبرك — معايير التصحيح <span class="tiny">كل معيار مربوط بهدف، وله أربعة مستويات</span></b><span class="tiny">العلامة القصوى: <b class="num" id="gSum">0</b></span></div>
+      <div id="gCrit" style="margin-top:8px"></div>
+      <div class="row wrap" style="gap:8px"><button class="btn sm outline" type="button" id="gCAdd">＋ معيار</button>
+        <select class="input" id="gCFill" style="width:auto;min-height:34px"><option value="">معيار لكل هدف من فصل…</option>${chs().map((ch) => `<option value="${ch.ch}">الفصل ${ch.ch}</option>`).join("")}</select>
+        <select class="input" id="gTpl" style="width:auto;min-height:34px"><option value="">قوالب الروبرك…</option></select><button class="btn sm ghost" type="button" id="gTplSave">حفظ الروبرك قالبًا</button></div></div>`;
+  }
+  function asgWire(s, a, objOpts) {
+    const q = (x) => s.querySelector(x), c = course(), A0 = (a && a.assign) || {};
+    // طرق التسليم
+    const num = () => [...q("#gWsL").children].forEach((d, i) => (d.firstChild.textContent = i + 1 + "."));
+    const wsAdd = (t) => { const d = document.createElement("div"); d.className = "row"; d.style.marginBottom = "6px";
+      d.innerHTML = `<span class="tiny num" style="min-width:22px"></span><input class="input grow" data-ws value="${esc(t)}" placeholder="نص السؤال"><button class="btn sm ghost" type="button">✕</button>`;
+      q("#gWsL").appendChild(d); d.querySelector("button").onclick = () => { d.remove(); num(); }; num(); };
+    (A0.worksheet || []).forEach((w) => wsAdd(w.q));
+    const tog = () => { q("#gTxO").classList.toggle("hide", !q("#gTx").checked); q("#gFlO").classList.toggle("hide", !q("#gFl").checked); q("#gWsO").classList.toggle("hide", !q("#gWs").checked); };
+    ["#gTx", "#gFl", "#gWs"].forEach((x) => (q(x).onchange = () => { if (x === "#gWs" && q("#gWs").checked && !q("#gWsL").children.length) wsAdd(""); tog(); }));
+    q("#gWsAdd").onclick = () => wsAdd(""); tog();
+    // التأخير
+    let late = A0.late || "none";
+    const lt = () => { s.querySelectorAll("#gLate button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.l === late)); q("#gLateO").classList.toggle("hide", late === "none"); q("#gPpW").classList.toggle("hide", late !== "penalty"); };
+    s.querySelectorAll("#gLate button").forEach((b) => (b.onclick = () => { late = b.dataset.l; lt(); })); lt();
+    // ملفات التعليمات: تُرفع فورًا في واجب محفوظ، وبعد الحفظ في واجب جديد
+    const brief = a ? (a.brief || []).slice() : [], queue = [];
+    const drawBrief = () => {
+      q("#gBrief").innerHTML = brief.map((f) => `<div class="frow">${FF.badge(f)}<span class="nm">${esc(f.name)}</span><span class="sz">${FF.size(f.size)}</span><button class="btn sm ghost" type="button" data-bd="${f.id}">✕</button></div>`).join("") +
+        queue.map((f, i) => `<div class="frow">${FF.badge({ name: f.name, mime: f.type })}<span class="nm">${esc(f.name)}</span><span class="sz">يُرفع عند الحفظ</span><button class="btn sm ghost" type="button" data-bq="${i}">✕</button></div>`).join("");
+      s.querySelectorAll("[data-bd]").forEach((b) => (b.onclick = async () => { try { await rpc("f_delete", { p_file: b.dataset.bd }); brief.splice(brief.findIndex((f) => f.id === b.dataset.bd), 1); drawBrief(); } catch (e) { toast(e.message, true); } }));
+      s.querySelectorAll("[data-bq]").forEach((b) => (b.onclick = () => { queue.splice(+b.dataset.bq, 1); drawBrief(); }));
+    };
+    q("#gBriefAdd").onclick = () => q("#gBriefIn").click();
+    q("#gBriefIn").onchange = async (e) => {
+      for (const f of [...e.target.files]) {
+        if (f.size > FF.MAX) { toast("«" + f.name + "» أكبر من 4 ميغابايت", true); continue; }
+        if (a) { try { brief.push(await FF.upload(f, { assessment: a.id, role: "brief" })); } catch (x) { toast(x.message, true); } } else queue.push(f);
+      }
+      e.target.value = ""; drawBrief();
+    };
+    drawBrief();
+    // الروبرك
+    const box = q("#gCrit");
+    const sum = () => (q("#gSum").textContent = nf([...box.children].reduce((t, d) => t + (+d.querySelector("[data-cm]").value || 0), 0), 2));
+    const addCrit = (p) => {
+      const d = document.createElement("div"); d.className = "crit"; if (p && p.id) d.dataset.id = p.id;
+      const mx = p ? +(p.max_score != null ? p.max_score : p.max) : 4;
+      const lv = p && p.levels && p.levels.length === 4 ? p.levels : RLF.map((k, i) => ({ name: RLV[i], pts: round2(mx * k), desc: "" }));
+      d.innerHTML = `<div class="hd"><input class="input" data-cl placeholder="المعيار (مثال: دقة الحسابات)" value="${esc(p ? p.label : "")}"><select class="input" data-co>${objOpts(p && p.objective_code)}</select>
+          <input class="input num" type="number" min="0.25" step="0.25" data-cm value="${mx}" title="العلامة القصوى للمعيار"><button class="btn sm ghost" type="button" data-rm title="حذف المعيار">✕</button></div>
+        <div class="lv4">${lv.map((l, i) => `<div><label><span>${RLV[i]}</span><input class="input num" type="number" min="0" step="0.25" data-lp="${i}" value="${+l.pts}"></label><textarea class="input" data-ld="${i}" placeholder="وصف الأداء في هذا المستوى">${esc(l.desc || "")}</textarea></div>`).join("")}</div>`;
+      box.appendChild(d);
+      d.querySelector("[data-rm]").onclick = () => { d.remove(); sum(); };
+      d.querySelector("[data-cm]").oninput = (e) => { const m = +e.target.value || 0; d.querySelectorAll("[data-lp]").forEach((x, i) => (x.value = round2(m * RLF[i]))); sum(); };
+      d.querySelector('[data-lp="0"]').oninput = (e) => { d.querySelector("[data-cm]").value = e.target.value; sum(); };
+      sum();
+    };
+    (a && a.kind === "assignment" ? a.parts : []).forEach(addCrit);
+    q("#gCAdd").onclick = () => addCrit(null);
+    q("#gCFill").onchange = (e) => { const ch = chs().find((x) => x.ch === +e.target.value); if (ch) ch.objs.forEach((o) => addCrit({ label: "الهدف " + o.code, objective_code: o.code, max_score: 4 })); e.target.value = ""; };
+    let TPL = [];
+    rpc("t_templates", { p_course: c.id }).then((r) => { TPL = r; q("#gTpl").innerHTML = `<option value="">قوالب الروبرك (${r.length})…</option>` + r.map((t) => `<option value="${t.id}">${esc(t.title)} — ${t.criteria.length} معايير</option>`).join(""); }).catch(() => { });
+    q("#gTpl").onchange = (e) => { const t = TPL.find((x) => x.id === e.target.value); e.target.value = ""; if (!t) return; t.criteria.forEach((p) => addCrit(Object.assign({}, p, { id: null }))); toast("أُضيفت معايير القالب «" + t.title + "»"); };
+    const parts = () => [...box.children].map((d) => {
+      const p = { id: d.dataset.id || null, label: d.querySelector("[data-cl]").value.trim(), objective_code: d.querySelector("[data-co]").value,
+        levels: [0, 1, 2, 3].map((i) => ({ name: RLV[i], pts: +d.querySelector(`[data-lp="${i}"]`).value, desc: d.querySelector(`[data-ld="${i}"]`).value.trim() })) };
+      p.max_score = p.levels[0].pts; return p;
+    });
+    const check = (P) => {
+      if (!P.length) throw new Error("أضف معيارًا واحدًا على الأقل إلى الروبرك");
+      P.forEach((p) => {
+        if (!p.label) throw new Error("اكتب اسم كل معيار في الروبرك");
+        if (!(p.max_score > 0)) throw new Error("علامة «" + p.label + "» يجب أن تكون أكبر من صفر");
+        for (let i = 0; i < 3; i++) if (!(p.levels[i].pts >= p.levels[i + 1].pts) || p.levels[i + 1].pts < 0) throw new Error("نقاط مستويات «" + p.label + "» يجب أن تتنازل من «متميّز» إلى «مبتدئ» ولا تقل عن صفر");
+      });
+      return P;
+    };
+    q("#gTplSave").onclick = async () => {
+      let P; try { P = check(parts()); } catch (x) { return toast(x.message, true); }
+      const t = window.prompt("اسم القالب (مثال: روبرك حل مسألة مالية)", q("#xT") ? q("#xT").value : ""); if (!t) return;
+      try { await rpc("t_template_save", { p_course: c.id, p_title: t, p_criteria: P.map((p) => ({ label: p.label, objective_code: p.objective_code, max_score: p.max_score, levels: p.levels })) }); toast("حُفظ القالب"); } catch (x) { toast(x.message, true); }
+    };
+    return { pending: queue, collect() {
+      const close = fromLocalInput(q("#gD").value); if (!close) throw new Error("حدّد موعد التسليم");
+      const P = check(parts());
+      const ws = q("#gWs").checked ? [...q("#gWsL").querySelectorAll("[data-ws]")].map((x) => x.value.trim()).filter(Boolean).map((t) => ({ q: t })) : [];
+      const ft = [...s.querySelectorAll(".gFt:checked")].map((x) => x.value);
+      if (q("#gFl").checked && !ft.length) throw new Error("اختر نوع ملف واحدًا على الأقل");
+      if (q("#gWs").checked && !ws.length) throw new Error("اكتب سؤالًا واحدًا على الأقل في ورقة العمل، أو ألغِ خيارها");
+      const wmin = +q("#gWmin").value || 0, wmax = +q("#gWmax").value || 0;
+      if (wmax && wmin > wmax) throw new Error("أقل عدد كلمات أكبر من أكثره");
+      const open = fromLocalInput(q("#gO").value); if (open && open >= close) throw new Error("موعد الفتح يجب أن يسبق موعد التسليم");
+      return { open_at: open, close_at: close, parts: P, assign: { instructions: q("#gI").value.trim(), sub_text: q("#gTx").checked, sub_files: q("#gFl").checked, worksheet: ws,
+        words_min: wmin, words_max: wmax, file_types: ft.length ? ft : FF.DEF, max_files: Math.max(1, Math.min(10, +q("#gMx").value || 3)), late,
+        penalty_pct: late === "penalty" ? Math.max(1, Math.min(100, +q("#gPp").value || 10)) : null, cutoff_at: late !== "none" ? fromLocalInput(q("#gCu").value) : null, resubmit: q("#gRs").checked } };
+    } };
+  }
+  async function releaseFlow(id, on, title, ungraded) {
+    const body = on ? `سيرى الطلبة علاماتهم في «${esc(title)}» مع مستوياتهم في الروبرك وملاحظاتك، وتدخل علامتهم في مجموعهم.${ungraded ? `<div class="tipbox tiny" style="margin-top:10px">ما زال ${ungraded} تسليمًا بلا تصحيح؛ لن تظهر علاماتهم حتى تصحّحها.</div>` : ""}<p class="tiny" style="margin-top:8px">من لم يسلّم بعد انتهاء الموعد يُحسب له صفر. وأي تعديل لعلامة بعد النشر يتطلب كتابة سببه ويُسجَّل.</p>`
+      : `ستختفي علامات «${esc(title)}» عن الطلبة وتخرج من مجموعهم حتى تنشرها مجددًا.`;
+    if (!(await confirmSheet(on ? "نشر العلامات" : "إخفاء العلامات", body, on ? "انشر" : "أخفِ", !on))) return false;
+    try { await rpc("t_release", { p_assessment: id, p_on: on }); toast(on ? "نُشرت العلامات" : "أُخفيت العلامات"); return true; } catch (e) { toast(e.message, true); return false; }
+  }
+
+  // ---------- شاشة التسليمات والتصحيح ----------
+  const G = { aid: null, d: null, sel: null, ver: null, rub: {}, rubFor: null, pen: 0, fb: "", cm: null, filter: "all", prev: null };
+  const sumSc = (x) => Object.values(x.scores || {}).reduce((t, v) => t + +v, 0);
+  function subSt(x) {
+    const sb = x.sub, st = x.state || {};
+    if (sb && sb.excused) return ["ex", "معفى"];
+    if (sb && sb.version > 0) {
+      const regr = sb.graded_at && new Date(sb.graded_at) < new Date(sb.submitted_at);
+      if (sb.graded_at && !regr) return ["ok", "مصحّح"];
+      return [sb.late_minutes > 0 ? "late" : "wait", regr ? "أعاد التسليم — يحتاج تصحيحًا" : sb.late_minutes > 0 ? "متأخر — بانتظار التصحيح" : "بانتظار التصحيح"];
+    }
+    if (sb && sb.graded_at) return ["ok", "مصحّح (بلا تسليم على المنصة)"];
+    if (!st.can_edit && st.reason === "closed") return ["miss", "لم يسلّم — يُحسب صفرًا"];
+    if (sb && sb.dirty) return ["draft", "مسودة لم تُسلَّم بعد"];
+    return ["", "لم يسلّم بعد"];
+  }
+  const FILT = [["all", "الكل"], ["todo", "بانتظار التصحيح"], ["none", "لم يسلّم"], ["late", "متأخر"], ["ok", "مصحّح"]];
+  const inFilt = (x) => { const k = subSt(x)[0]; return G.filter === "all" || (G.filter === "todo" && (k === "wait" || k === "late")) || (G.filter === "none" && (k === "" || k === "miss" || k === "draft")) || (G.filter === "late" && x.sub && x.sub.late_minutes > 0) || (G.filter === "ok" && k === "ok"); };
+  async function gLoad() {
+    const [d, cm] = await Promise.all([rpc("t_subs", { p_assessment: G.aid }), G.cm ? Promise.resolve(G.cm) : rpc("t_comments", { p_course: course().id })]);
+    G.d = d; G.cm = cm;
+  }
+  VIEWS.grade = { title: "التسليمات والتصحيح", nav: "assess", secAware: true, async render(el, arg) {
+    if (!arg) { location.hash = "#assess"; return; }
+    if (G.aid !== arg) { Object.assign(G, { aid: arg, d: null, sel: null, ver: null, rubFor: null, filter: "all" }); el.innerHTML = '<div class="card pad loading">جارٍ تحميل التسليمات…</div>'; }
+    await gLoad(); gDraw(el);
+  } };
+  function gDraw(el) {
+    const d = G.d, A = d.assign || {}, X = d.students;
+    const k = X.map(subSt), subm = X.filter((x) => x.sub && x.sub.version > 0).length, late = X.filter((x) => x.sub && x.sub.version > 0 && x.sub.late_minutes > 0).length;
+    const ok = k.filter((z) => z[0] === "ok").length, wait = k.filter((z) => z[0] === "wait" || z[0] === "late").length;
+    const sc = X.filter((x) => x.sub && x.sub.graded_at).map(sumSc), avg = sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : null;
+    let h = `<div class="vhead"><div><h2>${esc(d.title)}</h2><p>الموعد ${esc(fmtDT(d.close_at))} · ${esc(policyTxt(A))}${A.resubmit ? " · إعادة التسليم مسموحة" : ""} · ${A.released ? '<b style="color:var(--ok)">العلامات منشورة للطلبة</b>' : "<b>العلامات غير منشورة</b>"}</p></div>
+      <div class="toolbar"><a class="btn outline" href="#assess">${ic("right", "sm")}التقويمات</a><button class="btn ${A.released ? "outline" : "primary"}" id="gRel">${ic("eye", "sm")}${A.released ? "إخفاء العلامات" : "نشر العلامات"}</button>
+        <button class="btn outline" id="gAn">${ic("chart", "sm")}التحليل</button><button class="btn outline" id="gSim">${ic("copy", "sm")}فحص التشابه</button><button class="btn outline" id="gZip">${ic("download", "sm")}تنزيل الكل ZIP</button><button class="btn ghost" id="gEd">${ic("pen", "sm")}تعديل الواجب</button></div></div>`;
+    h += `<div class="kpi-row"><div class="kp">${ic("inbox")}<b class="num">${subm}/${X.length}</b><span>سلّموا</span><small>${X.length ? Math.round(subm / X.length * 100) : 0}٪ من الشعبة</small></div>
+      <div class="kp ${wait ? "warn" : ""}">${ic("pen")}<b class="num">${wait}</b><span>بانتظار التصحيح</span><small>صُحّح ${ok}</small></div>
+      <div class="kp">${ic("clock")}<b class="num">${late}</b><span>تسليم متأخر</span><small>${esc(A.late === "none" ? "التأخير غير مسموح" : A.late === "penalty" ? "بخصم " + nf(+A.penalty_pct || 10, 0) + "٪/يوم" : "بلا خصم")}</small></div>
+      <div class="kp">${ic("award")}<b class="num">${avg != null ? nf(avg, 2) : "—"}</b><span>متوسط المصحَّح</span><small>من ${nf(+d.max, 2)}</small></div></div>`;
+    h += `<div class="row wrap" style="margin:16px 0 10px;gap:8px"><div class="seg" id="gF">${FILT.map(([f, t]) => `<button data-f="${f}" aria-pressed="${G.filter === f}">${t} <span class="tiny">${X.filter((x) => { const o = G.filter; G.filter = f; const r = inFilt(x); G.filter = o; return r; }).length}</span></button>`).join("")}</div></div>`;
+    const L = X.filter(inFilt);
+    if (!G.sel || !X.find((x) => x.enrollment_id === G.sel)) G.sel = ((X.find((x) => ["wait", "late"].includes(subSt(x)[0])) || X[0]) || {}).enrollment_id;
+    h += `<div class="gwrap"><div class="card glist">${L.length ? L.map((x) => { const z = subSt(x); return `<button class="gi ${x.enrollment_id === G.sel ? "on" : ""}" data-s="${x.enrollment_id}" title="${esc(z[1])}"><span class="sdot ${z[0]}"></span><span class="nm">${esc(x.full_name)}</span>${x.sub && x.sub.graded_at ? `<span class="sc num">${nf(sumSc(x), 2)}</span>` : x.sub && x.sub.late_minutes > 0 ? '<span class="pill warn">متأخر</span>' : ""}</button>`; }).join("") : '<div class="tiny" style="padding:12px">لا أحد بهذه التصفية.</div>'}
+      <div class="tiny" style="padding:10px 8px 4px;line-height:2"><span class="sdot ok" style="display:inline-block"></span> مصحّح · <span class="sdot wait" style="display:inline-block"></span> بانتظار التصحيح · <span class="sdot late" style="display:inline-block"></span> متأخر · <span class="sdot miss" style="display:inline-block"></span> لم يسلّم بعد الموعد · <span class="sdot draft" style="display:inline-block"></span> مسودة</div></div><div id="gDet"></div></div>`;
+    el.innerHTML = h;
+    el.querySelectorAll("#gF button").forEach((b) => (b.onclick = () => { G.filter = b.dataset.f; gDraw(el); }));
+    el.querySelectorAll(".gi").forEach((b) => (b.onclick = () => { G.sel = b.dataset.s; G.ver = null; gDraw(el); if (innerWidth < 900) el.querySelector("#gDet").scrollIntoView({ behavior: "smooth" }); }));
+    el.querySelector("#gRel").onclick = async () => { if (await releaseFlow(d.id, !A.released, d.title, wait)) { await gLoad(); gDraw(el); loadSection(); } };
+    el.querySelector("#gAn").onclick = analytics;
+    el.querySelector("#gSim").onclick = similarity;
+    el.querySelector("#gZip").onclick = (e) => zipAssign([d], e.currentTarget, d.title);
+    el.querySelector("#gEd").onclick = () => { const a = S.assess.find((x) => x.id === d.id); if (a) editAssessment(a); };
+    gDetail(el.querySelector("#gDet"), el);
+  }
+  function filesBlock(files, pre) {
+    if (!files || !files.length) return "";
+    return `<div class="flist">${files.map((f) => `<div><div class="frow">${FF.badge(f)}<span class="nm" title="${esc(f.name)}">${esc(f.name)}</span><span class="sz">${FF.size(f.size)}</span>
+      ${f.purged ? '<span class="pill">مؤرشف</span>' : `${FF.canPreview(f) ? `<button class="btn sm outline" type="button" data-pv="${pre}|${f.id}">${ic("eye", "sm")}عرض</button>` : ""}<button class="btn sm ghost" type="button" data-dl="${f.id}">${ic("download", "sm")}</button>`}</div><div class="fprev" id="pv-${pre}-${f.id}"></div></div>`).join("")}</div>`;
+  }
+  function wireFiles(box, files) {
+    box.querySelectorAll("[data-dl]").forEach((b) => (b.onclick = () => FF.download(files.find((f) => f.id === b.dataset.dl) || { id: b.dataset.dl }, b)));
+    box.querySelectorAll("[data-pv]").forEach((b) => (b.onclick = () => {
+      const [pre, id] = b.dataset.pv.split("|"), pv = box.querySelector("#pv-" + pre + "-" + id);
+      if (pv.innerHTML) { pv.innerHTML = ""; return; } FF.preview(files.find((f) => f.id === id), pv);
+    }));
+  }
+  function gDetail(box, el) {
+    const d = G.d, x = d.students.find((s) => s.enrollment_id === G.sel);
+    if (!x) { box.innerHTML = emptyBox("users", "لا طلبة في الشعبة", ""); return; }
+    const sb = x.sub || {}, A = d.assign || {}, rel = !!A.released, vers = sb.versions || [], z = subSt(x), P = d.parts;
+    const v = (G.ver != null && vers.find((y) => y.version === G.ver)) || vers[0] || null;
+    if (G.rubFor !== x.enrollment_id) { G.rubFor = x.enrollment_id; G.rub = JSON.parse(JSON.stringify(sb.rubric || {})); G.pen = sb.penalty_pct != null ? +sb.penalty_pct : 0; G.fb = sb.feedback || ""; G.reason = ""; }
+    const L = d.students.filter(inFilt), i = L.findIndex((y) => y.enrollment_id === x.enrollment_id);
+    let h = `<div class="card pad"><div class="row sp wrap" style="gap:8px"><div><h3 style="font-size:18px">${esc(x.full_name)}</h3><div class="tiny"><span class="mono">${esc(x.username)}</span> · <span class="sdot ${z[0]}" style="display:inline-block"></span> ${esc(z[1])}</div></div>
+      <div class="row" style="gap:6px"><button class="btn sm outline" id="gPrev" ${i <= 0 ? "disabled" : ""}>${ic("right", "sm")}السابق</button><button class="btn sm outline" id="gNext" ${i < 0 || i >= L.length - 1 ? "disabled" : ""}>التالي${ic("left", "sm")}</button></div></div>`;
+    // التسليم
+    if (v) {
+      h += `<div class="stbox" style="margin-top:12px"><div><span>النسخة</span><b>${v.version}${vers.length > 1 ? " من " + vers.length : ""}</b></div><div><span>وقت التسليم</span><b>${esc(fmtDT(v.submitted_at))}</b></div>
+        <div><span>التأخير</span><b style="${v.late_minutes ? "color:var(--warn)" : ""}">${v.late_minutes ? esc(lateTxt(v.late_minutes)) : "في الموعد"}</b></div><div><span>إقرار النزاهة</span><b>${sb.integrity ? "✓ أقرّ بأن العمل من إنجازه" : "—"}</b></div></div>`;
+      if (vers.length > 1) h += `<div class="vsel" style="margin-top:10px"><span class="tiny">النسخ:</span>${vers.map((y) => `<button class="btn sm ${y.version === v.version ? "primary" : "outline"}" data-ver="${y.version}">${y.version}${y.version === vers[0].version ? " (الأحدث)" : ""}</button>`).join("")}</div>`;
+      if (sb.dirty) h += `<div class="tipbox tiny" style="margin-top:10px">يعدّل الطالب الآن مسودة جديدة لم يسلّمها بعد؛ ترى هنا آخر نسخة سلّمها.</div>`;
+      (A.worksheet || []).forEach((w, k) => { h += `<div class="wsq" style="margin-top:10px"><div class="q">${k + 1}. ${esc(w.q)}</div><div class="anstext">${esc(((v.answers || [])[k]) || "—")}</div></div>`; });
+      if (v.text) h += `<div style="margin-top:12px"><div class="row sp"><b>الإجابة المكتوبة</b><span class="tiny">${words(v.text)} كلمة</span></div><div class="anstext" style="margin-top:6px">${esc(v.text)}</div></div>`;
+      if (v.files && v.files.length) h += `<div style="margin-top:12px"><b>الملفات (${v.files.length})</b><div style="margin-top:6px">${filesBlock(v.files, "s")}</div></div>`;
+    } else h += `<div class="tipbox tiny" style="margin-top:12px">${sb.excused ? "الطالب معفى من هذا الواجب؛ لا يُحتسب له." : "لم يسلّم على المنصة" + (z[0] === "miss" ? "، وانتهى الموعد فيُحسب له صفر ما لم تمدّد له أو تعفه." : " بعد.") + " ويمكنك تصحيحه بالروبرك إن سلّمك ورقيًّا."}</div>`;
+    h += "</div>";
+    // الروبرك
+    h += `<div class="card pad" style="margin-top:12px"><div class="row sp wrap"><h3 style="font-size:16px">${ic("target", "sm")} التصحيح بالروبرك</h3><span class="tiny">اضغط المستوى، أو اكتب علامة مخصّصة؛ ولكل معيار ملاحظة</span></div>
+      <div class="rubwrap" style="margin-top:8px"><table class="rub pick"><thead><tr><th>المعيار</th>${RLV.map((n) => `<th>${n}</th>`).join("")}<th>العلامة والملاحظة</th></tr></thead><tbody>
+      ${P.map((p) => { const r = G.rub[p.id] || {}; return `<tr data-p="${p.id}"><td class="cn"><b>${esc(p.label)}</b><span class="lbl-chip" dir="ltr">${p.objective_code}</span> <span class="tiny">من ${nf(+p.max, 2)}</span></td>
+        ${(p.levels || []).map((l, k) => `<td class="lc ${r.lvl === k ? "sel" : ""}" data-k="${k}"><span class="p num">${nf(+l.pts, 2)}</span>${esc(l.desc || "")}</td>`).join("")}
+        <td class="cx"><input class="input num" type="number" min="0" max="${+p.max}" step="0.25" data-pts value="${r.pts == null ? "" : r.pts}" placeholder="—"><textarea class="input" data-c placeholder="ملاحظة على المعيار">${esc(r.c || "")}</textarea></td></tr>`; }).join("")}
+      </tbody></table></div>
+      <div class="row sp wrap" style="margin-top:10px;gap:12px"><div class="gtot"><span class="tiny">العلامة</span><b class="num" id="gTot">—</b><span class="tiny">من ${nf(+d.max, 2)}</span><span id="gLv"></span></div>
+        <label class="row" style="gap:6px"><span class="tiny">خصم التأخير ٪</span><input class="input num" type="number" min="0" max="100" step="1" id="gPen" value="${G.pen}" style="width:80px"></label></div>
+      <div class="tiny" id="gRaw"></div>
+      <label class="field" style="margin-top:12px"><span>ملاحظات عامة للطالب</span><textarea class="input" id="gFb" rows="4" placeholder="ما أحسنه، وما يحتاج تحسينه، وخطوته التالية…">${esc(G.fb)}</textarea></label>
+      <div class="row sp wrap"><span class="tiny">بنك التعليقات — اضغط لإدراج تعليق</span><button class="btn sm ghost" id="gCbAdd">＋ حفظ المحدد في البنك</button></div><div class="cbank" id="gCb"></div>
+      <div style="margin-top:12px"><b style="font-size:14px">ملفات ملاحظات للطالب</b> <span class="tiny">(نسخة مصحّحة، أو تسجيل، أو نموذج حل)</span><div style="margin-top:6px">${filesBlock(sb.feedback_files || [], "f")}</div>
+        <button class="btn sm outline" id="gFfAdd" style="margin-top:6px">${ic("clip", "sm")}إرفاق ملف</button><input type="file" id="gFfIn" multiple hidden></div>
+      ${rel && sb.graded_at ? `<label class="field" style="margin-top:12px"><span>سبب تعديل العلامة (مطلوب لأن العلامات منشورة)</span><input class="input" id="gWhy" value="${esc(G.reason || "")}" placeholder="مثال: مراجعة بعد اعتراض الطالب"></label>` : ""}
+      <div class="row wrap" style="gap:8px;margin-top:14px"><button class="btn primary" id="gSave">${ic("check", "sm")}حفظ التصحيح</button><button class="btn outline" id="gSaveN">حفظ والتالي${ic("left", "sm")}</button>${sb.graded_at ? '<button class="btn ghost" id="gUn">إلغاء التصحيح</button>' : ""}
+        <span class="tiny grow" style="text-align:end">${sb.graded_at ? "صُحّح " + esc(fmtDT(sb.graded_at, false)) + (rel ? " · منشور للطالب" : " · غير منشور بعد") : "لم يُصحَّح بعد"}</span></div></div>`;
+    // الاستثناءات والسجل
+    h += `<details class="card pad" style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">${ic("key", "sm")} استثناءات لهذا الطالب ${sb.extension_until || sb.excused || sb.reopen_until ? '<span class="pill warn">مفعّل</span>' : ""}</summary>
+      <div class="fields two" style="margin-top:10px"><label class="field"><span>تمديد موعد التسليم له حتى</span><input class="input" type="datetime-local" id="gExt" value="${sb.extension_until ? toLocalInput(sb.extension_until) : ""}"></label>
+        <div class="row" style="gap:6px;align-self:end"><button class="btn sm outline" id="gExtS">حفظ التمديد</button>${sb.extension_until ? '<button class="btn sm ghost" id="gExtC">إلغاء التمديد</button>' : ""}</div></div>
+      <div class="fields two"><label class="field"><span>طلب إعادة التسليم حتى</span><input class="input" type="datetime-local" id="gRo" value="${sb.reopen_until ? toLocalInput(sb.reopen_until) : ""}"></label>
+        <label class="field"><span>ما المطلوب منه في الإعادة</span><input class="input" id="gRoN" value="${esc(sb.reopen_note || "")}" placeholder="مثال: صحّح حساب هامش المساهمة"></label></div>
+      <div class="row wrap" style="gap:6px"><button class="btn sm outline" id="gRoS">إرسال طلب الإعادة</button>${sb.reopen_until ? '<button class="btn sm ghost" id="gRoC">إلغاء الطلب</button>' : ""}
+        <span class="grow"></span><label class="check"><input type="checkbox" id="gEx" ${sb.excused ? "checked" : ""}> معفى من هذا الواجب (عذر مقبول — لا يُحتسب له)</label></div>
+      ${(sb.log || []).length ? `<div style="margin-top:12px"><b class="tiny">سجل تعديل العلامة</b>${sb.log.map((g) => `<div class="logl">${esc(fmtDT(g.at, false))}: ${g.old == null ? "—" : nf(+g.old, 2)} ← ${g.new == null ? "أُلغي التصحيح" : nf(+g.new, 2)}${g.reason ? " · " + esc(g.reason) : ""}</div>`).join("")}</div>` : ""}</details>`;
+    box.innerHTML = h;
+    // الملفات
+    wireFiles(box, [...(v ? v.files || [] : []), ...(sb.feedback_files || [])]);
+    box.querySelectorAll("[data-ver]").forEach((b) => (b.onclick = () => { G.ver = +b.dataset.ver; gDetail(box, el); }));
+    box.querySelector("#gPrev").onclick = () => { if (i > 0) { G.sel = L[i - 1].enrollment_id; G.ver = null; gDraw(el); } };
+    box.querySelector("#gNext").onclick = () => { if (i < L.length - 1) { G.sel = L[i + 1].enrollment_id; G.ver = null; gDraw(el); } };
+    // الروبرك
+    const tot = () => {
+      let raw = 0, n = 0; P.forEach((p) => { const r = G.rub[p.id]; if (r && r.pts != null && r.pts !== "") { raw += +r.pts; n++; } });
+      const pen = Math.max(0, Math.min(100, +G.pen || 0)), fin = P.reduce((t, p) => { const r = G.rub[p.id]; return t + (r && r.pts != null && r.pts !== "" ? round2(+r.pts * (1 - pen / 100)) : 0); }, 0);
+      box.querySelector("#gTot").textContent = n ? nf(fin, 2) : "—";
+      box.querySelector("#gLv").innerHTML = n === P.length ? lvChip(fin / +d.max * 100) : `<span class="tiny">قيّمت ${n} من ${P.length} معايير</span>`;
+      box.querySelector("#gRaw").textContent = pen && n ? `قبل الخصم ${nf(raw, 2)} − خصم ${nf(pen, 0)}٪` + (v && v.late_minutes ? ` (تأخر ${lateTxt(v.late_minutes)})` : "") : "";
+    };
+    box.querySelectorAll("tr[data-p]").forEach((tr) => {
+      const p = P.find((y) => y.id === tr.dataset.p), inp = tr.querySelector("[data-pts]");
+      tr.querySelectorAll(".lc").forEach((td) => (td.onclick = () => {
+        const k = +td.dataset.k; G.rub[p.id] = Object.assign(G.rub[p.id] || {}, { lvl: k, pts: +p.levels[k].pts });
+        tr.querySelectorAll(".lc").forEach((t) => t.classList.toggle("sel", t === td)); inp.value = +p.levels[k].pts; tot();
+      }));
+      inp.oninput = () => { const val = inp.value === "" ? null : Math.max(0, Math.min(+p.max, +inp.value)); const k = val == null ? null : p.levels.findIndex((l) => +l.pts === val);
+        G.rub[p.id] = Object.assign(G.rub[p.id] || {}, { pts: val, lvl: k >= 0 ? k : null }); tr.querySelectorAll(".lc").forEach((t) => t.classList.toggle("sel", +t.dataset.k === k)); tot(); };
+      tr.querySelector("[data-c]").oninput = (e) => { G.rub[p.id] = Object.assign(G.rub[p.id] || {}, { c: e.target.value }); };
+    });
+    box.querySelector("#gPen").oninput = (e) => { G.pen = e.target.value; tot(); };
+    const fb = box.querySelector("#gFb"); fb.oninput = () => (G.fb = fb.value);
+    const why = box.querySelector("#gWhy"); if (why) why.oninput = () => (G.reason = why.value);
+    tot();
+    // بنك التعليقات
+    const drawCb = () => {
+      const cb = box.querySelector("#gCb");
+      cb.innerHTML = G.cm.length ? G.cm.map((c) => `<span class="cb" data-ci="${c.id}" title="${esc(c.text)}"><span>${esc(c.text)}</span><i data-cx="${c.id}" title="حذف من البنك">✕</i></span>`).join("") : '<span class="tiny">البنك فارغ؛ اكتب تعليقًا تكرّره كثيرًا، وحدّده، ثم احفظه.</span>';
+      cb.querySelectorAll("[data-ci]").forEach((b) => (b.onclick = (e) => { if (e.target.dataset.cx) return; const t = G.cm.find((c) => c.id === b.dataset.ci).text; fb.value = (fb.value.trim() ? fb.value.trim() + "\n" : "") + t; G.fb = fb.value; fb.focus(); }));
+      cb.querySelectorAll("[data-cx]").forEach((b) => (b.onclick = async () => { try { await rpc("t_comment_del", { p_id: b.dataset.cx }); G.cm = G.cm.filter((c) => c.id !== b.dataset.cx); drawCb(); } catch (e) { toast(e.message, true); } }));
+    };
+    drawCb();
+    box.querySelector("#gCbAdd").onclick = async () => {
+      const t = (fb.value.substring(fb.selectionStart, fb.selectionEnd) || fb.value).trim(); if (!t) return toast("اكتب التعليق في الملاحظات أولًا (أو حدّد جزءًا منه)", true);
+      try { const r = await rpc("t_comment_save", { p_course: course().id, p_text: t }); G.cm.push({ id: r.id, text: t }); drawCb(); toast("حُفظ في بنك التعليقات"); } catch (e) { toast(e.message, true); }
+    };
+    // ملفات الملاحظات
+    box.querySelector("#gFfAdd").onclick = () => box.querySelector("#gFfIn").click();
+    box.querySelector("#gFfIn").onchange = async (e) => {
+      const b = box.querySelector("#gFfAdd"); spin(b, true, "جارٍ الرفع…");
+      for (const f of [...e.target.files]) { try { await FF.upload(await FF.shrink(f), { assessment: d.id, role: "feedback", enrollment: x.enrollment_id }); } catch (er) { toast(er.message, true); } }
+      await gLoad(); gDraw(el);
+    };
+    box.querySelectorAll('[data-dl]').forEach((b) => { const f = (sb.feedback_files || []).find((y) => y.id === b.dataset.dl); if (f) { const del = document.createElement("button"); del.className = "btn sm ghost"; del.textContent = "✕"; del.title = "حذف"; del.onclick = async () => { try { await rpc("f_delete", { p_file: f.id }); await gLoad(); gDraw(el); } catch (er) { toast(er.message, true); } }; b.after(del); } });
+    // الحفظ
+    const save = async (btn, next) => {
+      const miss = P.filter((p) => !G.rub[p.id] || G.rub[p.id].pts == null || G.rub[p.id].pts === "");
+      if (miss.length) return toast("قيّم كل المعايير: " + miss.map((p) => p.label).join("، "), true);
+      spin(btn, true, "جارٍ الحفظ…");
+      try {
+        await rpc("t_grade", { p_assessment: d.id, p_enrollment: x.enrollment_id, p_rubric: G.rub, p_feedback: G.fb, p_penalty: +G.pen || 0, p_reason: G.reason || null });
+        toast("حُفظ التصحيح"); G.rubFor = null; await gLoad();
+        if (next) { const L2 = G.d.students.filter(inFilt); const nx = L2.slice(L2.findIndex((y) => y.enrollment_id === x.enrollment_id) + 1).find((y) => ["wait", "late"].includes(subSt(y)[0])) || L2[L2.findIndex((y) => y.enrollment_id === x.enrollment_id) + 1]; if (nx) G.sel = nx.enrollment_id; G.ver = null; }
+        gDraw(el); loadSection();
+      } catch (e) { toast(e.message, true); spin(btn, false); }
+    };
+    box.querySelector("#gSave").onclick = (e) => save(e.currentTarget, false);
+    box.querySelector("#gSaveN").onclick = (e) => save(e.currentTarget, true);
+    const un = box.querySelector("#gUn");
+    if (un) un.onclick = async () => {
+      if (rel && !(G.reason || "").trim()) return toast("العلامات منشورة؛ اكتب سبب إلغاء التصحيح في خانة السبب", true);
+      if (!(await confirmSheet("إلغاء التصحيح", `ستُحذف علامة <b>${esc(x.full_name)}</b> في هذا الواجب ويعود «بانتظار التصحيح».`, "ألغِ التصحيح", true))) return;
+      try { await rpc("t_ungrade", { p_assessment: d.id, p_enrollment: x.enrollment_id, p_reason: G.reason || null }); G.rubFor = null; await gLoad(); gDraw(el); loadSection(); } catch (e) { toast(e.message, true); }
+    };
+    // الاستثناءات
+    const setX = async (p, msg) => { try { await rpc("t_sub_set", { p_assessment: d.id, p_enrollment: x.enrollment_id, p }); toast(msg); await gLoad(); gDraw(el); loadSection(); } catch (e) { toast(e.message, true); } };
+    box.querySelector("#gExtS").onclick = () => { const t = fromLocalInput(box.querySelector("#gExt").value); if (!t) return toast("اختر تاريخ التمديد", true); setX({ extension_until: t }, "مُدّد الموعد لهذا الطالب"); };
+    const ec = box.querySelector("#gExtC"); if (ec) ec.onclick = () => setX({ extension_until: null }, "أُلغي التمديد");
+    box.querySelector("#gRoS").onclick = () => { const t = fromLocalInput(box.querySelector("#gRo").value); if (!t || new Date(t) <= new Date()) return toast("اختر موعدًا قادمًا لإعادة التسليم", true); setX({ reopen_until: t, reopen_note: box.querySelector("#gRoN").value }, "أُرسل طلب إعادة التسليم"); };
+    const rc = box.querySelector("#gRoC"); if (rc) rc.onclick = () => setX({ reopen_until: null, reopen_note: null }, "أُلغي طلب الإعادة");
+    box.querySelector("#gEx").onchange = (e) => setX({ excused: e.target.checked }, e.target.checked ? "أُعفي الطالب من الواجب" : "أُلغي الإعفاء");
+  }
+  // التحليل: نسبة التسليم، ومتوسط كل معيار، وتوزيع المستويات، والأهداف الأضعف
+  function analytics() {
+    const d = G.d, P = d.parts, X = d.students, gr = X.filter((x) => x.sub && x.sub.graded_at && x.sub.rubric);
+    const subm = X.filter((x) => x.sub && x.sub.version > 0), onT = subm.filter((x) => !x.sub.late_minutes).length, ex = X.filter((x) => x.sub && x.sub.excused).length;
+    const rows = P.map((p) => {
+      const cnt = [0, 0, 0, 0, 0]; let t = 0, n = 0;
+      gr.forEach((x) => { const r = x.sub.rubric[p.id]; if (!r || r.pts == null) return; const v = +r.pts; t += v; n++;
+        const k = r.lvl != null ? r.lvl : v <= 0 ? 4 : p.levels.reduce((b, l, i) => (Math.abs(+l.pts - v) < Math.abs(+p.levels[b].pts - v) ? i : b), 0); cnt[k]++; });
+      return { p, avg: n ? t / n / +p.max * 100 : null, cnt, n };
+    });
+    const o = course().objectives;
+    const weak = rows.filter((r) => r.avg != null && r.avg < 70).sort((a, b) => a.avg - b.avg);
+    openSheet(`<h3>${ic("chart", "sm")} تحليل «${esc(d.title)}»</h3>
+      <div class="stbox" style="margin:10px 0"><div><span>سلّموا</span><b>${subm.length} من ${X.length - ex}</b></div><div><span>في الموعد</span><b>${onT}</b></div><div><span>متأخرون</span><b>${subm.length - onT}</b></div><div><span>معفون</span><b>${ex}</b></div><div><span>مصحَّح</span><b>${gr.length}</b></div></div>
+      <p class="tiny">المتوسطات من نقاط الروبرك قبل خصم التأخير — تقيس جودة العمل نفسه.</p>
+      <div class="tw"><table class="t"><thead><tr><th>المعيار</th><th>الهدف</th><th class="num">المتوسط</th><th>توزيع المستويات (متميّز ← مبتدئ ← صفر)</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td><b>${esc(r.p.label)}</b></td><td><span class="lbl-chip" dir="ltr">${r.p.objective_code}</span></td><td class="num">${r.avg == null ? "—" : pc(r.avg)} ${r.avg == null ? "" : lvChip(r.avg)}</td>
+        <td>${r.n ? `<div class="distbar">${r.cnt.map((c, k) => c ? `<i class="d${4 - k}" style="width:${c / r.n * 100}%" title="${k < 4 ? RLV[k] : "صفر"}: ${c}"></i>` : "").join("")}</div><span class="tiny">${r.cnt.slice(0, 4).map((c, k) => RLV[k] + " " + c).join(" · ")}${r.cnt[4] ? " · صفر " + r.cnt[4] : ""}</span>` : '<span class="tiny">—</span>'}</td></tr>`).join("")}</tbody></table></div>
+      <div class="sect"><h3>${ic("spark", "sm")} أهداف تحتاج إعادة تدريس</h3>${weak.length ? '<div class="list card">' + weak.map((r) => `<div class="li"><span><span class="lbl-chip" dir="ltr">${r.p.objective_code}</span> ${esc((o.find((y) => y.code === r.p.objective_code) || {}).text || "")}<div class="tiny">المعيار: ${esc(r.p.label)}</div></span><b class="num">${pc(r.avg)}</b></div>`).join("") + "</div>" : '<p class="tiny">لا معيار متوسطه أقل من 70٪ حتى الآن.</p>'}</div>`, true);
+  }
+  // فحص التشابه: نص الطلبة (5 كلمات متتالية) + الملفات المتطابقة بصمةً
+  function similarity() {
+    const d = G.d, docs = d.students.filter((x) => x.sub && x.sub.version > 0);
+    const norm = (t) => String(t || "").replace(/[ً-ْـ]/g, "").replace(/[إأآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").toLowerCase().split(/\s+/).filter(Boolean);
+    const sh = (t) => { const w = norm(t), s = new Set(); for (let i = 0; i + 5 <= w.length; i++) s.add(w.slice(i, i + 5).join(" ")); return s; };
+    const S2 = docs.map((x) => ({ x, s: sh([x.sub.text, ...(x.sub.answers || [])].join(" \n ")) }));
+    const pairs = [];
+    for (let i = 0; i < S2.length; i++) for (let j = i + 1; j < S2.length; j++) {
+      const a = S2[i].s, b = S2[j].s; if (a.size < 4 || b.size < 4) continue;
+      let inter = 0; a.forEach((g) => b.has(g) && inter++); const jac = inter / (a.size + b.size - inter);
+      if (jac >= 0.2) pairs.push([S2[i].x, S2[j].x, jac, inter]);
+    }
+    pairs.sort((a, b) => b[2] - a[2]);
+    const byHash = {}; docs.forEach((x) => (x.sub.files || []).forEach((f) => { if (f.sha256) (byHash[f.sha256] = byHash[f.sha256] || []).push([x, f]); }));
+    const dup = Object.values(byHash).filter((g) => new Set(g.map((y) => y[0].enrollment_id)).size > 1);
+    openSheet(`<h3>${ic("copy", "sm")} فحص التشابه بين الطلبة</h3><p class="tiny">مقارنة داخلية بين تسليمات هذه الشعبة فقط: نسبة العبارات المشتركة (كل 5 كلمات متتالية) في الإجابات المكتوبة، والملفات المتطابقة تمامًا. النسبة مؤشر للمراجعة وليست حكمًا؛ اقرأ التسليمين قبل أي قرار.</p>
+      <div class="sect"><h3>النصوص المتشابهة (20٪ فأكثر)</h3>${pairs.length ? pairs.map(([a, b, j, n]) => `<div class="simrow"><span><b>${esc(a.full_name)}</b> ↔ <b>${esc(b.full_name)}</b><div class="tiny">${n} عبارة مشتركة</div></span><span class="pill ${j >= 0.5 ? "bad" : "warn"}">${pc(j * 100)}</span></div>`).join("") : '<p class="tiny">لا تشابه لافت في النصوص.</p>'}</div>
+      <div class="sect"><h3>ملفات متطابقة بين طلبة مختلفين</h3>${dup.length ? dup.map((g) => `<div class="simrow"><span>${g.map(([x, f]) => `<b>${esc(x.full_name)}</b> <span class="tiny">(${esc(f.name)})</span>`).join(" ↔ ")}</span><span class="pill bad">متطابق</span></div>`).join("") : '<p class="tiny">لا ملفات متطابقة.</p>'}</div>`, true);
+  }
+  // تنزيل تسليمات واجب أو أكثر في ملف ZIP واحد (مجلد لكل طالب)
+  async function zipAssign(list, btn, name) {
+    const lab = btn ? btn.innerHTML : "";
+    try {
+      if (btn) btn.textContent = "تحضير…";
+      const J = await FF.zipLib(), z = new J();
+      const sum = [["الواجب", "الرقم الجامعي", "اسم الطالب", "الحالة", "النسخة", "وقت التسليم", "التأخير", "العلامة", "من", "المستوى"]];
+      let nf0 = 0;
+      for (const d0 of list) {
+        const d = d0.students ? d0 : await rpc("t_subs", { p_assessment: d0.id }), A = d.assign || {};
+        const root = list.length > 1 ? z.folder(FF.safe(d.title)) : z;
+        for (const x of d.students) {
+          const sb = x.sub || {}, st = subSt(x), sc = sb.graded_at ? sumSc(x) : null;
+          sum.push([d.title, x.username, x.full_name, st[1], sb.version || "", sb.submitted_at ? fmtDT(sb.submitted_at, false) : "", lateTxt(sb.late_minutes), sc == null ? "" : round2(sc), +d.max, sc == null ? "" : LV[lvOf(sc / d.max * 100)]]);
+          if (!sb.version) continue;
+          const dir = root.folder(FF.safe(x.username + " - " + x.full_name));
+          if (sb.text) dir.file("الإجابة المكتوبة.txt", sb.text);
+          if ((A.worksheet || []).length) dir.file("إجابات ورقة العمل.txt", A.worksheet.map((w, k) => k + 1 + ". " + w.q + "\n" + ((sb.answers || [])[k] || "—")).join("\n\n"));
+          let k = 0;
+          for (const f of sb.files || []) { if (f.purged) continue; k++; if (btn) btn.textContent = "ملف " + ++nf0 + "…"; const r = await FF.blob(f.id); dir.file(k + " - " + FF.safe(f.name), r.blob); }
+        }
+      }
+      z.file("ملخص التسليمات.csv", csv(sum));
+      if (btn) btn.textContent = "ضغط…";
+      FF.save(await z.generateAsync({ type: "blob" }), FF.safe(name) + ".zip"); toast("نُزّل ملف ZIP (" + nf0 + " ملفًا)");
+    } catch (e) { toast(e.message, true); }
+    if (btn) btn.innerHTML = lab;
+  }
 
   // ===================== البداية =====================
   const s0 = session();

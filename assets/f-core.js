@@ -52,5 +52,17 @@
   const emptyBox = (i, t, s, extra) => `<div class="card empty"><div class="ibox" style="margin:0 auto 12px">${ic(i)}</div><b>${t}</b>${s ? `<div class="tiny" style="margin-top:4px">${s}</div>` : ""}${extra || ""}</div>`;
   const AR_M = ["كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول"];
   async function copy(t) { try { await navigator.clipboard.writeText(t); U.toast("نُسخ"); } catch (e) { U.toast("تعذّر النسخ", true); } }
-  window.F = { C, session, setSession, remembered, rpc, setOnAuth: (f) => (onAuth = f), LV, lvOf, lvChip, lvBar, nf, pc, outcomeMastery, chaptersOf, emptyBox, AR_M, copy };
+  // التقويمات الثلاثة كما يعتمدها المحاضر: الأول (المنتصف) ثم الثاني الأدائي (كل ما عدا المنتصف والنهائي) ثم النهائي
+  function evalGroups(comps) {
+    const en = document.documentElement.lang === "en";
+    const g = [{ key: "first", title: en ? "First assessment (midterm)" : "التقويم الأول (منتصف الفصل)", comps: [] },
+      { key: "second", title: en ? "Second assessment (performance)" : "التقويم الثاني (الأدائي)", comps: [] },
+      { key: "final", title: en ? "Final exam" : "الاختبار النهائي", comps: [] }];
+    comps.forEach((k) => (k.key === "midterm" ? g[0] : k.key === "final" ? g[2] : g[1]).comps.push(k));
+    g.forEach((x) => (x.weight = x.comps.reduce((t, k) => t + +k.weight, 0)));
+    return g.filter((x) => x.comps.length);
+  }
+  // علامة الطالب في مجموعة: مجموع علامات مكوّناتها المحتسبة (null إن لم يُرصد شيء)
+  const groupMark = (st, grp) => { const v = grp.comps.filter((k) => st.comps[k.id] != null).map((k) => st.comps[k.id] * k.weight / 100); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
+  window.F = { evalGroups, groupMark, C, session, setSession, remembered, rpc, setOnAuth: (f) => (onAuth = f), LV, lvOf, lvChip, lvBar, nf, pc, outcomeMastery, chaptersOf, emptyBox, AR_M, copy };
 })();
