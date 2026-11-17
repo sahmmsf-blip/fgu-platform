@@ -1,0 +1,19 @@
+# تنشيط قاعدة البيانات كل 5 أيام حتى لا يوقفها Supabase بعد 7 أيام بلا نشاط (الخطة المجانية)
+# يستعمل المفتاح العام فقط (المفتاح نفسه الموجود في assets/config.js)
+name: keepalive
+on:
+  schedule:
+    - cron: "17 3 */5 * *"   # الساعة 03:17 بتوقيت UTC، كل 5 أيام
+  workflow_dispatch: {}       # زر تشغيل يدوي للتجربة
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          code=$(curl -s -o out.json -w "%{http_code}" -X POST \
+            "https://chbbanfjdntrniemlqwu.supabase.co/rest/v1/rpc/fgu_ping" \
+            -H "apikey: sb_publishable_64fOKTmjckpynd6Uow27xg_rpY7u6ga" \
+            -H "Content-Type: application/json" -d "{}")
+          cat out.json; echo
+          test "$code" = "200"
